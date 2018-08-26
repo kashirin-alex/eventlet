@@ -29,7 +29,9 @@ if os.environ.get('EVENTLET_CLOCK'):
     default_clock = getattr(eventlet.patcher.original(mod[0]), mod[1])
     del mod
 else:
-    import monotonic.monotonic as default_clock
+    import monotonic
+    default_clock = monotonic.monotonic
+    del monotonic
 
 g_prevent_multiple_readers = True
 
