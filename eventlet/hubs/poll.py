@@ -2,11 +2,11 @@ import errno
 import sys
 
 from eventlet import patcher
-select = patcher.original('select')
-time = patcher.original('time')
-
 from eventlet.hubs.hub import BaseHub, READ, WRITE, noop
 from eventlet.support import get_errno, clear_sys_exc_info
+
+select = patcher.original('select')
+time = patcher.original('time')
 
 EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
@@ -72,9 +72,8 @@ class Hub(BaseHub):
         writers = self.listeners[WRITE]
 
         if not readers and not writers:
-            if seconds:
-                time.sleep(seconds)
-            return
+            if not seconds:
+                return
         try:
             presult = self.do_poll(seconds)
         except (IOError, select.error) as e:
