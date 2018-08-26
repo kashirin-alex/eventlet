@@ -34,7 +34,6 @@ def get_default_hub():
     # except:
     #    pass
 
-    select = patcher.original('select')
     try:
         import eventlet.hubs.epolls
         return eventlet.hubs.epolls
@@ -43,6 +42,7 @@ def get_default_hub():
             import eventlet.hubs.kqueue
             return eventlet.hubs.kqueue
         except ImportError:
+            select = patcher.original('select')
             if hasattr(select, 'poll'):
                 import eventlet.hubs.poll
                 return eventlet.hubs.poll
@@ -160,6 +160,8 @@ def trampoline(fd, read=None, write=None, timeout=None,
             listener = hub.add(hub.READ, fileno, current.switch, current.throw, mark_as_closed)
         elif write:
             listener = hub.add(hub.WRITE, fileno, current.switch, current.throw, mark_as_closed)
+        else:
+            listener = None
         try:
             return hub.switch()
         finally:
@@ -174,8 +176,7 @@ def notify_close(fd):
     A particular file descriptor has been explicitly closed. Register for any
     waiting listeners to be notified on the next run loop.
     """
-    hub = get_hub()
-    hub.notify_close(fd)
+    get_hub().notify_close(fd)
 
 
 def notify_opened(fd):
@@ -187,8 +188,7 @@ def notify_opened(fd):
     We let the hub know that the old file descriptor is dead; any stuck listeners
     will be disabled and notified in turn.
     """
-    hub = get_hub()
-    hub.mark_as_reopened(fd)
+    get_hub().mark_as_reopened(fd)
 
 
 class IOClosed(IOError):
