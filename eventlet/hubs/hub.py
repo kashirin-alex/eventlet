@@ -23,7 +23,6 @@ else:
 import eventlet
 from eventlet.hubs import timer, IOClosed
 from eventlet.support import greenlets as greenlet, clear_sys_exc_info
-import six
 
 if os.environ.get('EVENTLET_CLOCK'):
     mod = os.environ.get('EVENTLET_CLOCK').rsplit('.', 1)
@@ -125,9 +124,7 @@ class BaseHub(object):
         self.secondaries = {READ: {}, WRITE: {}}
         self.closed = []
 
-        if clock is None:
-            clock = default_clock
-        self.clock = clock
+        self.clock = default_clock if clock is None else clock
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -198,13 +195,13 @@ class BaseHub(object):
             their greenlets queued up to send.
         """
         found = False
-        for evtype, bucket in six.iteritems(self.secondaries):
+        for evtype in self.secondaries:
+            bucket = self.secondaries[evtype]
             if fileno in bucket:
-                for listener in bucket[fileno]:
+                for listener in bucket.pop(fileno):
                     found = True
                     self.closed.append(listener)
                     listener.defang()
-                del bucket[fileno]
 
         # For the primary listeners, we actually need to call remove,
         # which may modify the underlying OS polling objects.
