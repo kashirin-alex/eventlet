@@ -20,14 +20,14 @@ else:
             signal.alarm(math.ceil(seconds))
         arm_alarm = alarm_signal
 
+import eventlet
 from eventlet.hubs import timer, IOClosed
 from eventlet.support import greenlets as greenlet, clear_sys_exc_info
-from eventlet import patcher
 import six
 
 if os.environ.get('EVENTLET_CLOCK'):
     mod = os.environ.get('EVENTLET_CLOCK').rsplit('.', 1)
-    default_clock = getattr(patcher.original(mod[0]), mod[1])
+    default_clock = getattr(eventlet.patcher.original(mod[0]), mod[1])
     del mod
 else:
     import monotonic.monotonic as default_clock
@@ -65,7 +65,7 @@ class FdListener(object):
         """
         self.evtype, self.fileno, self.cb, self.tb, self.mark_as_closed = args
         self.spent = False
-        self.greenlet = greenlet.getcurrent()
+        self.greenlet = eventlet.getcurrent()
 
     def __repr__(self):
         return "%s(%r, %r, %r, %r)" % (type(self).__name__, self.evtype, self.fileno,
@@ -119,6 +119,7 @@ class BaseHub(object):
     WRITE = WRITE
 
     def __init__(self, clock=None):
+
         self.listeners = {READ: {}, WRITE: {}}
         self.secondaries = {READ: {}, WRITE: {}}
         self.closed = []
@@ -137,6 +138,7 @@ class BaseHub(object):
         self.debug_exceptions = True
         self.debug_blocking = False
         self.debug_blocking_resolution = 1
+        self._old_signal_handler = None
 
     def block_detect_pre(self):
         # shortest alarm we can possibly raise is one second
@@ -231,13 +233,12 @@ class BaseHub(object):
         evtype = listener.evtype
         self.listeners[evtype].pop(fileno, None)
         # migrate a secondary listener to be the primary listener
-        if fileno in self.secondaries[evtype]:
-            sec = self.secondaries[evtype].get(fileno, None)
-            if not sec:
-                return
-            self.listeners[evtype][fileno] = sec.pop(0)
-            if not sec:
-                del self.secondaries[evtype][fileno]
+        sec = self.secondaries[evtype].get(fileno, None)
+        if not sec:
+            return
+        self.listeners[evtype][fileno] = sec.pop(0)
+        if not sec:
+            del self.secondaries[evtype][fileno]
 
     def mark_as_reopened(self, fileno):
         """ If a file descriptor is returned by the OS as the result of some
@@ -273,18 +274,19 @@ class BaseHub(object):
             listener.tb(IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
     def ensure_greenlet(self):
-        if self.greenlet.dead:
-            # create new greenlet sharing same parent as original
-            new = greenlet.greenlet(self.run, self.greenlet.parent)
-            # need to assign as parent of old greenlet
-            # for those greenlets that are currently
-            # children of the dead hub and may subsequently
-            # exit without further switching to hub.
-            self.greenlet.parent = new
-            self.greenlet = new
+        if not self.greenlet.dead:
+            return
+        # create new greenlet sharing same parent as original
+        new = greenlet.greenlet(self.run, self.greenlet.parent)
+        # need to assign as parent of old greenlet
+        # for those greenlets that are currently
+        # children of the dead hub and may subsequently
+        # exit without further switching to hub.
+        self.greenlet.parent = new
+        self.greenlet = new
 
     def switch(self):
-        cur = greenlet.getcurrent()
+        cur = eventlet.getcurrent()
         assert cur is not self.greenlet, 'Cannot switch to MAINLOOP from MAINLOOP'
         switch_out = getattr(cur, 'switch_out', None)
         if switch_out is not None:
@@ -318,10 +320,9 @@ class BaseHub(object):
         return 60.0
 
     def sleep_until(self):
-        t = self.timers
-        if not t:
+        if not self.timers:
             return None
-        return t[0][0]
+        return self.timers[0][0]
 
     def run(self, *a, **kw):
         """Run the runloop until abort is called.
@@ -338,6 +339,7 @@ class BaseHub(object):
                 while self.closed:
                     # We ditch all of these first.
                     self.close_one()
+
                 self.prepare_timers()
                 if self.debug_blocking:
                     self.block_detect_pre()
@@ -345,15 +347,9 @@ class BaseHub(object):
                 if self.debug_blocking:
                     self.block_detect_post()
                 self.prepare_timers()
-                wakeup_when = self.sleep_until()
-                if wakeup_when is None:
-                    sleep_time = self.default_sleep()
-                else:
-                    sleep_time = wakeup_when - self.clock()
-                if sleep_time > 0:
-                    self.wait(sleep_time)
-                else:
-                    self.wait(0)
+
+                sleep_time = self.timers[0][0] - self.clock() if self.timers else 60.0
+                self.wait(sleep_time if sleep_time > 0 else 0)
             else:
                 self.timers_canceled = 0
                 del self.timers[:]
@@ -374,7 +370,7 @@ class BaseHub(object):
         if self.running:
             self.stopping = True
         if wait:
-            assert self.greenlet is not greenlet.getcurrent(
+            assert self.greenlet is not eventlet.getcurrent(
             ), "Can't abort with wait from inside the hub's greenlet."
             # schedule an immediate timer just so the hub doesn't sleep
             self.schedule_call_global(0, lambda: None)
@@ -388,24 +384,28 @@ class BaseHub(object):
             sys.stderr.flush()
             clear_sys_exc_info()
 
-    def squelch_timer_exception(self, timer, exc_info):
+    def squelch_timer_exception(self, tmr, exc_info):
         if self.debug_exceptions:
             traceback.print_exception(*exc_info)
             sys.stderr.flush()
             clear_sys_exc_info()
 
-    def add_timer(self, timer):
-        scheduled_time = self.clock() + timer.seconds
-        self.next_timers.append((scheduled_time, timer))
+    def add_timer(self, tmr):
+        scheduled_time = self.clock() + tmr.seconds
+        self.next_timers.append((scheduled_time, tmr))
         return scheduled_time
 
-    def timer_canceled(self, timer):
+    def timer_canceled(self, tmr):
         self.timers_canceled += 1
         len_timers = len(self.timers) + len(self.next_timers)
         if len_timers > 1000 and len_timers / 2 <= self.timers_canceled:
             self.timers_canceled = 0
-            self.timers = [t for t in self.timers if not t[1].called]
-            self.next_timers = [t for t in self.next_timers if not t[1].called]
+            timers = [t for t in self.timers if not t[1].called]
+            del self.timers[:]
+            self.timers += timers
+            timers = [t for t in self.next_timers if not t[1].called]
+            del self.next_timers[:]
+            self.next_timers += timers
             heapq.heapify(self.timers)
 
     def prepare_timers(self):
@@ -448,10 +448,7 @@ class BaseHub(object):
         heappop = heapq.heappop
 
         while t:
-            next = t[0]
-
-            exp = next[0]
-            timer = next[1]
+            exp, tmr = t[0]
 
             if when < exp:
                 break
@@ -459,14 +456,14 @@ class BaseHub(object):
             heappop(t)
 
             try:
-                if timer.called:
+                if tmr.called:
                     self.timers_canceled -= 1
                 else:
-                    timer()
+                    tmr()
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
-                self.squelch_timer_exception(timer, sys.exc_info())
+                self.squelch_timer_exception(tmr, sys.exc_info())
                 clear_sys_exc_info()
 
     # for debugging:
@@ -481,10 +478,7 @@ class BaseHub(object):
         return len(hub.timers) + len(hub.next_timers)
 
     def set_debug_listeners(self, value):
-        if value:
-            self.lclass = DebugListener
-        else:
-            self.lclass = FdListener
+        self.lclass = DebugListener if value else FdListener
 
     def set_timer_exceptions(self, value):
         self.debug_exceptions = value
