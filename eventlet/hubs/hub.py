@@ -46,9 +46,11 @@ def closed_callback(fileno):
 
 
 class FdListener(object):
+    __slots__ = ['evtype', 'fileno', 'cb', 'tb', 'mark_as_closed', 'spent', 'greenlet']
 
-    def __init__(self, evtype, fileno, cb, tb, mark_as_closed):
+    def __init__(self, *args):
         """ The following are required:
+        *args : evtype, fileno, cb, tb, mark_as_closed
         cb - the standard callback, which will switch into the
             listening greenlet to indicate that the event waited upon
             is ready
@@ -61,12 +63,7 @@ class FdListener(object):
             underlying filehandle-wrapping objects that they've been
             closed.
         """
-        assert (evtype is READ or evtype is WRITE)
-        self.evtype = evtype
-        self.fileno = fileno
-        self.cb = cb
-        self.tb = tb
-        self.mark_as_closed = mark_as_closed
+        self.evtype, self.fileno, self.cb, self.tb, self.mark_as_closed = args
         self.spent = False
         self.greenlet = greenlet.getcurrent()
 
@@ -89,11 +86,11 @@ noop = FdListener(READ, 0, lambda x: None, lambda x: None, None)
 
 
 class DebugListener(FdListener):
+    __slots__ = FdListener.__slots__ + ['where_called']
 
     def __init__(self, evtype, fileno, cb, tb, mark_as_closed):
-        self.where_called = traceback.format_stack()
-        self.greenlet = greenlet.getcurrent()
         super(DebugListener, self).__init__(evtype, fileno, cb, tb, mark_as_closed)
+        self.where_called = traceback.format_stack()
 
     def __repr__(self):
         return "DebugListener(%r, %r, %r, %r, %r, %r)\n%sEndDebugFdListener" % (
