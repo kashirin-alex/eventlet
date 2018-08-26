@@ -29,26 +29,26 @@ class Hub(BaseHub):
 
     def register(self, fileno, new=False):
         mask = 0
-        if self.listeners[READ].get(fileno):
+        if self.readers.get(fileno):
             mask |= READ_MASK | EXC_MASK
-        if self.listeners[WRITE].get(fileno):
+        if self.writers.get(fileno):
             mask |= WRITE_MASK | EXC_MASK
         try:
             if mask:
                 if new:
                     self.poll.register(fileno, mask)
-                else:
-                    try:
-                        self.poll.modify(fileno, mask)
-                    except (IOError, OSError):
-                        self.poll.register(fileno, mask)
-            else:
+                    return
                 try:
-                    self.poll.unregister(fileno)
-                except (KeyError, IOError, OSError):
-                    # raised if we try to remove a fileno that was
-                    # already removed/invalid
-                    pass
+                    self.poll.modify(fileno, mask)
+                except (IOError, OSError):
+                    self.poll.register(fileno, mask)
+                return
+            try:
+                self.poll.unregister(fileno)
+            except (KeyError, IOError, OSError):
+                # raised if we try to remove a fileno that was
+                # already removed/invalid
+                pass
         except ValueError:
             # fileno is bad, issue 74
             self.remove_descriptor(fileno)
@@ -68,10 +68,7 @@ class Hub(BaseHub):
         return self.poll.poll(int(seconds * 1000.0))
 
     def wait(self, seconds=None):
-        readers = self.listeners[READ]
-        writers = self.listeners[WRITE]
-
-        if not readers and not writers:
+        if not self.readers and not self.writers:
             if not seconds:
                 return
         try:
@@ -80,7 +77,6 @@ class Hub(BaseHub):
             if get_errno(e) == errno.EINTR:
                 return
             raise
-        SYSTEM_EXCEPTIONS = self.SYSTEM_EXCEPTIONS
 
         if self.debug_blocking:
             self.block_detect_pre()
@@ -92,21 +88,30 @@ class Hub(BaseHub):
         # another.
         callbacks = set()
         for fileno, event in presult:
-            if event & READ_MASK:
-                callbacks.add((readers.get(fileno, noop), fileno))
-            if event & WRITE_MASK:
-                callbacks.add((writers.get(fileno, noop), fileno))
             if event & select.POLLNVAL:
                 self.remove_descriptor(fileno)
                 continue
+            if event & READ_MASK:
+                l = self.readers.get(fileno)
+                if l:
+                    callbacks.add((l, fileno))
+            if event & WRITE_MASK:
+                l = self.writers.get(fileno)
+                if l:
+                    callbacks.add((l, fileno))
             if event & EXC_MASK:
-                callbacks.add((readers.get(fileno, noop), fileno))
-                callbacks.add((writers.get(fileno, noop), fileno))
+                l = self.readers.get(fileno)
+                if l:
+                    callbacks.add((l, fileno))
+                l = self.writers.get(fileno)
+                if l:
+                    callbacks.add((l, fileno))
 
+        sys_exceptions = self.SYSTEM_EXCEPTIONS
         for listener, fileno in callbacks:
             try:
                 listener.cb(fileno)
-            except SYSTEM_EXCEPTIONS:
+            except sys_exceptions:
                 raise
             except:
                 self.squelch_exception(fileno, sys.exc_info())

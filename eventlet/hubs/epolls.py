@@ -4,7 +4,6 @@ from eventlet import patcher
 
 from eventlet.hubs.hub import BaseHub
 from eventlet.hubs import poll
-from eventlet.hubs.poll import READ, WRITE
 
 select = patcher.original('select')
 if not hasattr(select, 'epoll'):
@@ -24,7 +23,7 @@ class Hub(poll.Hub):
         self.poll = select.epoll()
 
     def add(self, evtype, fileno, cb, tb, mac):
-        new = not (fileno in self.listeners[READ] or fileno in self.listeners[WRITE])
+        new = not (fileno in self.readers or fileno in self.writers)
         listener = BaseHub.add(self, evtype, fileno, cb, tb, mac)
         try:
             # Means we've added a new listener
