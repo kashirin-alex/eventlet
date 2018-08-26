@@ -24,7 +24,7 @@ class Hub(poll.Hub):
         self.poll = select.epoll()
 
     def add(self, evtype, fileno, cb, tb, mac):
-        new = not (fileno in self.listeners[READ] or self.listeners[WRITE])
+        new = not (fileno in self.listeners[READ] or fileno in self.listeners[WRITE])
         listener = BaseHub.add(self, evtype, fileno, cb, tb, mac)
         try:
             # Means we've added a new listener
