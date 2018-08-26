@@ -18,8 +18,7 @@ class Hub(BaseHub):
         """ Iterate through fds, removing the ones that are bad per the
         operating system.
         """
-        all_fds = list(self.listeners[READ]) + list(self.listeners[WRITE])
-        for fd in all_fds:
+        for fd in list(self.listeners[READ]) + list(self.listeners[WRITE]):
             try:
                 select.select([fd], [], [], 0)
             except select.error as e:
