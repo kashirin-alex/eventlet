@@ -5,7 +5,7 @@ from eventlet import event
 from eventlet import hubs
 from eventlet import support
 from eventlet import timeout
-from eventlet.hubs import timer
+from eventlet.hubs import timer as ev_timer
 from eventlet.support import greenlets as greenlet
 import six
 import warnings
@@ -129,8 +129,7 @@ def call_after_local(seconds, function, *args, **kwargs):
         DeprecationWarning, stacklevel=2)
     hub = hubs.get_hub()
     g = greenlet.greenlet(function, parent=hub.greenlet)
-    t = hub.schedule_call_local(seconds, g.switch, *args, **kwargs)
-    return t
+    return hub.schedule_call_local(seconds, g.switch, *args, **kwargs)
 
 
 call_after = call_after_local
@@ -141,9 +140,8 @@ def exc_after(seconds, *throw_args):
                   "Timeout(seconds, exception)",
                   DeprecationWarning, stacklevel=2)
     if seconds is None:  # dummy argument, do nothing
-        return timer.Timer(seconds, lambda: None)
-    hub = hubs.get_hub()
-    return hub.schedule_call_local(seconds, getcurrent().throw, *throw_args)
+        return ev_timer.Timer(seconds, lambda: None)
+    return hubs.get_hub().schedule_call_local(seconds, getcurrent().throw, *throw_args)
 
 # deprecate, remove
 TimeoutError, with_timeout = (
@@ -156,8 +154,7 @@ TimeoutError, with_timeout = (
 def _spawn_n(seconds, func, args, kwargs):
     hub = hubs.get_hub()
     g = greenlet.greenlet(func, parent=hub.greenlet)
-    t = hub.schedule_call_global(seconds, g.switch, *args, **kwargs)
-    return t, g
+    return hub.schedule_call_global(seconds, g.switch, *args, **kwargs), g
 
 
 class GreenThread(greenlet.greenlet):
@@ -170,6 +167,7 @@ class GreenThread(greenlet.greenlet):
         greenlet.greenlet.__init__(self, self.main, parent)
         self._exit_event = event.Event()
         self._resolving_links = False
+        self._exit_funcs = None
 
     def wait(self):
         """ Returns the result of the main function of this GreenThread.  If the
@@ -196,7 +194,8 @@ class GreenThread(greenlet.greenlet):
         functions by doing things like switching explicitly to another
         greenthread.
         """
-        self._exit_funcs = getattr(self, '_exit_funcs', deque())
+        if self._exit_funcs is None:
+            self._exit_funcs = deque()
         self._exit_funcs.append((func, curried_args, curried_kwargs))
         if self._exit_event.ready():
             self._resolve_links()
@@ -206,7 +205,7 @@ class GreenThread(greenlet.greenlet):
 
         Remove successfully return True, otherwise False
         """
-        if not getattr(self, '_exit_funcs', None):
+        if not self._exit_funcs:
             return False
         try:
             self._exit_funcs.remove((func, curried_args, curried_kwargs))
@@ -231,10 +230,11 @@ class GreenThread(greenlet.greenlet):
             return
         self._resolving_links = True
         try:
-            exit_funcs = getattr(self, '_exit_funcs', deque())
-            while exit_funcs:
-                f, ca, ckw = exit_funcs.popleft()
-                f(self, *ca, **ckw)
+            if self._exit_funcs is not None:
+                exit_funcs = self._exit_funcs
+                while exit_funcs:
+                    f, ca, ckw = exit_funcs.popleft()
+                    f(self, *ca, **ckw)
         finally:
             self._resolving_links = False
 
