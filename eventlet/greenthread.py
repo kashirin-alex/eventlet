@@ -231,9 +231,8 @@ class GreenThread(greenlet.greenlet):
         self._resolving_links = True
         try:
             if self._exit_funcs is not None:
-                exit_funcs = self._exit_funcs
-                while exit_funcs:
-                    f, ca, ckw = exit_funcs.popleft()
+                while self._exit_funcs:
+                    f, ca, ckw = self._exit_funcs.popleft()
                     f(self, *ca, **ckw)
         finally:
             self._resolving_links = False
