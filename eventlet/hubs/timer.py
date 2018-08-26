@@ -10,6 +10,8 @@ _g_debug = False
 
 
 class Timer(object):
+    __slots__ = ['scheduled_time', 'seconds', 'tpl', 'called', 'traceback']
+
     def __init__(self, seconds, cb, *args, **kw):
         """Create a timer.
             seconds: The minimum number of seconds to wait before calling
@@ -79,10 +81,11 @@ class Timer(object):
 
 
 class LocalTimer(Timer):
-
+    __slots__ = Timer.__slots__ + ['greenlet']
+    
     def __init__(self, *args, **kwargs):
-        self.greenlet = greenlet.getcurrent()
         Timer.__init__(self, *args, **kwargs)
+        self.greenlet = greenlet.getcurrent()
 
     @property
     def pending(self):
