@@ -119,8 +119,9 @@ class BaseHub(object):
     WRITE = WRITE
 
     def __init__(self, clock=None):
-
-        self.listeners = {READ: {}, WRITE: {}}
+        self.readers = {}
+        self.writers = {}
+        self.listeners = {READ: self.readers, WRITE: self.writers}
         self.secondaries = {READ: {}, WRITE: {}}
         self.closed = []
 
@@ -207,13 +208,19 @@ class BaseHub(object):
 
         # For the primary listeners, we actually need to call remove,
         # which may modify the underlying OS polling objects.
-        for evtype, bucket in six.iteritems(self.listeners):
-            if fileno in bucket:
-                listener = bucket[fileno]
-                found = True
-                self.closed.append(listener)
-                self.remove(listener)
-                listener.defang()
+
+        listener = self.readers.get(fileno)
+        if listener:
+            found = True
+            self.closed.append(listener)
+            self.remove(listener)
+            listener.defang()
+        listener = self.writers.get(fileno)
+        if listener:
+            found = True
+            self.closed.append(listener)
+            self.remove(listener)
+            listener.defang()
 
         return found
 
@@ -253,8 +260,12 @@ class BaseHub(object):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
         listeners = []
-        listeners.append(self.listeners[READ].pop(fileno, noop))
-        listeners.append(self.listeners[WRITE].pop(fileno, noop))
+        l = self.writers.get(fileno)
+        if l:
+            listeners.append(l)
+        l = self.readers.get(fileno)
+        if l:
+            listeners.append(l)
         listeners.extend(self.secondaries[READ].pop(fileno, ()))
         listeners.extend(self.secondaries[WRITE].pop(fileno, ()))
         for listener in listeners:
@@ -469,13 +480,13 @@ class BaseHub(object):
     # for debugging:
 
     def get_readers(self):
-        return self.listeners[READ].values()
+        return self.readers.values()
 
     def get_writers(self):
-        return self.listeners[WRITE].values()
+        return self.writers.values()
 
-    def get_timers_count(hub):
-        return len(hub.timers) + len(hub.next_timers)
+    def get_timers_count(self):
+        return len(self.timers) + len(self.next_timers)
 
     def set_debug_listeners(self, value):
         self.lclass = DebugListener if value else FdListener
