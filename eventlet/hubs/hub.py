@@ -431,8 +431,7 @@ class BaseHub(object):
         debug_blocking = self.debug_blocking
         t = self.timers
         delay = 0
-        push_timers = 33
-        when = self.clock()
+        push_timers = 24
         while t:
             exp, tmr = t[0]
 
@@ -443,14 +442,13 @@ class BaseHub(object):
             if push_timers == 0:
                 if self.readers or self.writers:
                     return 0
-                when = self.clock()
-                push_timers = 33
+                push_timers = 24
             else:
                 push_timers -= 1
 
-            sleep_time = exp - when
+            sleep_time = exp - self.clock()
             if sleep_time > delay:
-                return sleep_time
+                return sleep_time-delay
             delay = abs(sleep_time)
 
             heappop(t)
