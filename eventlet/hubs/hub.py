@@ -358,7 +358,7 @@ class BaseHub(object):
 
                 if self.debug_blocking:
                     self.block_detect_post()
-
+                print (sleep_time)
                 self.wait(sleep_time)
             else:
                 del self.timers[:]
@@ -440,10 +440,9 @@ class BaseHub(object):
             if when < exp:
                 sleep_time = exp - when
                 return 0.002 if sleep_time > 0.002 else (sleep_time if sleep_time > 0 else 0)
+            delay = when - delay - exp
 
             tmr = t.pop(exp)
-
-            delay = when - delay - tmr.scheduled_time
             if tmr.called:
                 continue
             try:
