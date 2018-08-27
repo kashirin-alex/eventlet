@@ -355,6 +355,7 @@ class BaseHub(object):
                     self.block_detect_pre()
 
                 sleep_time = self.fire_timers()
+                print (sleep_time)
 
                 if self.debug_blocking:
                     self.block_detect_post()
@@ -400,9 +401,6 @@ class BaseHub(object):
 
     def add_timer(self, tmr):
         scheduled_time = self.clock() + tmr.seconds
-        if scheduled_time in self.timers:
-            print (self.timers)
-            exit(1)
         self.timers[scheduled_time] = tmr
         return scheduled_time
 
@@ -435,12 +433,15 @@ class BaseHub(object):
         return t
 
     def fire_timers(self):
-        when = self.clock()
         t = self.timers
 
+        print (self.timers)
+
         for exp in sorted(t):
+            when = self.clock()
             if when < exp:
-                sleep_time = exp - self.clock()
+                sleep_time = exp - when
+
                 return sleep_time if sleep_time > -0.00001 else 0
             tmr = t.pop(exp)
             if tmr.called:
