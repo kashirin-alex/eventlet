@@ -426,6 +426,7 @@ class BaseHub(object):
         return t
 
     def exec_timers(self):
+        debug_blocking = self.debug_blocking
         t = self.timers
         delay = 0
         while t:
@@ -443,12 +444,15 @@ class BaseHub(object):
             heappop(t)
 
             try:
-                if self.debug_blocking:
+                if debug_blocking:
                     self.block_detect_pre()
+
                 tmr()
-                if self.debug_blocking:
+
+                if debug_blocking:
                     self.block_detect_post()
-                return 0
+                if self.readers or self.writers:
+                    return 0
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
