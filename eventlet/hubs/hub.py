@@ -436,10 +436,10 @@ class BaseHub(object):
         delay = 0.00001
         while t:
             exp = sorted(t)[0]
-            sleep_time = exp - self.clock() + delay
+            sleep_time = exp - self.clock() - delay
             if sleep_time > 0:
                 return sleep_time/2 if sleep_time > 0.0001 else sleep_time
-            delay = sleep_time - delay
+            delay += sleep_time + delay
 
             tmr = t.pop(exp)
             if tmr.called:
@@ -452,7 +452,7 @@ class BaseHub(object):
                 self.squelch_timer_exception(tmr, sys.exc_info())
                 clear_sys_exc_info()
 
-        return 60.0
+        return 5.0
 
     # for debugging:
 
