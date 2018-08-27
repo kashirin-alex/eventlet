@@ -34,4 +34,6 @@ class Hub(poll.Hub):
         return listener
 
     def do_poll(self, seconds):
-        return self.poll.poll(seconds)
+        if seconds:
+            return self.poll.poll(seconds)
+        self.poll.poll()
