@@ -177,7 +177,7 @@ class BaseHub(object):
         close operations from accidentally shutting down the wrong OS thread.
         """
         listener = self.lclass(evtype, fileno, cb, tb, mark_as_closed)
-        bucket = getattr(self, evtype+'rs')
+        bucket = getattr(self, evtype+'ers')
         if fileno in bucket:
             if g_prevent_multiple_readers:
                 raise RuntimeError(
@@ -244,10 +244,10 @@ class BaseHub(object):
         evtype = listener.evtype
         sec = self.secondaries[evtype].get(fileno, None)
         if not sec:
-            getattr(self, evtype + 'rs').pop(fileno, None)
+            getattr(self, evtype + 'ers').pop(fileno, None)
             return
         # migrate a secondary listener to be the primary listener
-        getattr(self, evtype + 'rs')[fileno] = sec.pop(0)
+        getattr(self, evtype + 'ers')[fileno] = sec.pop(0)
         if not sec:
             del self.secondaries[evtype][fileno]
 
