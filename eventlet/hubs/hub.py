@@ -433,14 +433,13 @@ class BaseHub(object):
 
     def exec_timers(self):
         t = self.timers
-        delay = 0.0001
+        delay = 0.00001
         while t:
             exp = sorted(t)[0]
-            when = self.clock() + delay
-            if when < exp:
-                sleep_time = exp - when
-                return 0.002 if sleep_time > 0.002 else (sleep_time if sleep_time > 0 else 0)
-            delay = when - delay - exp
+            sleep_time = exp - self.clock() + delay
+            if sleep_time > 0:
+                return sleep_time/2 if sleep_time > 0.0001 else sleep_time
+            delay = sleep_time - delay
 
             tmr = t.pop(exp)
             if tmr.called:
