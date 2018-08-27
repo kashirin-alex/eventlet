@@ -68,7 +68,7 @@ class Timer(object):
         """Prevent this timer from being called. If the timer has already
         been called or canceled, has no effect.
         """
-        if self.called or self.scheduled_time == 0:
+        if self.called:
             return
         self.called = True
         hubs.get_hub().timer_canceled(self)
