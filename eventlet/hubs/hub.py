@@ -177,7 +177,7 @@ class BaseHub(object):
         close operations from accidentally shutting down the wrong OS thread.
         """
         listener = self.lclass(evtype, fileno, cb, tb, mark_as_closed)
-        bucket = self.listeners[evtype]
+        bucket = getattr(self, evtype+'rs')
         if fileno in bucket:
             if g_prevent_multiple_readers:
                 raise RuntimeError(
@@ -244,10 +244,10 @@ class BaseHub(object):
         evtype = listener.evtype
         sec = self.secondaries[evtype].get(fileno, None)
         if not sec:
-            self.listeners[evtype].pop(fileno, None)
+            getattr(self, evtype + 'rs').pop(fileno, None)
             return
         # migrate a secondary listener to be the primary listener
-        self.listeners[evtype][fileno] = sec.pop(0)
+        getattr(self, evtype + 'rs')[fileno] = sec.pop(0)
         if not sec:
             del self.secondaries[evtype][fileno]
 
@@ -361,8 +361,8 @@ class BaseHub(object):
             readers = self.readers
             closed = self.closed
 
-            t = self.timers
-            nxt_t = self.next_timers
+            timers = self.timers
+            next_timers = self.next_timers
 
             wait = self.wait
             close_one = self.close_one
@@ -376,28 +376,32 @@ class BaseHub(object):
                     # We ditch all of these first.
                     close_one()
 
-                while nxt_t:
+                while next_timers:
                     # apply next timers
-                    heappush(t, nxt_t.pop(-1))
+                    tmr = next_timers.pop(-1)
+                    if tmr.called:
+                        continue
+                    heappush(timers, (tmr.scheduled_time, tmr))
 
-                if not t:
+                if not timers:
                     # wait for fd signals
                     wait(60)
                     continue
 
                 # current evaluated timer
-                exp, tmr = t[0]
+                exp, tmr = timers[0]
 
                 if tmr.called:
                     # remove called timer
-                    heappop(t)
+                    heappop(timers)
                     continue
 
                 if push_timers == 0:
                     # check for new fd signals
                     if readers or writers:
                         wait(0)
-                    push_timers = int(len(t)/4)
+                    push_timers = int(len(timers)/4)
+                    # portion of due timers before checking for FD event can be configurable
                 else:
                     push_timers -= 1
 
@@ -408,7 +412,7 @@ class BaseHub(object):
                     continue
 
                 # remove timer
-                heappop(t)
+                heappop(timers)
 
                 if debug_blocking:
                     self.block_detect_pre()
@@ -461,10 +465,9 @@ class BaseHub(object):
             clear_sys_exc_info()
 
     def add_timer(self, tmr):
-        scheduled_time = self.clock() + tmr.seconds
-        self.next_timers.append((scheduled_time, tmr))
+        self.next_timers.append(tmr)
         # This can be a place to interrupt a 60 seconds(no timers) poll wait, if new scheduled is below.
-        return scheduled_time
+        return self.clock() + tmr.seconds
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
@@ -474,9 +477,9 @@ class BaseHub(object):
             *args: Arguments to pass to the callable when called.
             **kw: Keyword arguments to pass to the callable when called.
         """
-        t = timer.LocalTimer(seconds, cb, *args, **kw)
-        self.add_timer(t)
-        return t
+        tmr = timer.LocalTimer(seconds, cb, *args, **kw)
+        self.add_timer(tmr)
+        return tmr
 
     def schedule_call_global(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
@@ -487,9 +490,9 @@ class BaseHub(object):
             *args: Arguments to pass to the callable when called.
             **kw: Keyword arguments to pass to the callable when called.
         """
-        t = timer.Timer(seconds, cb, *args, **kw)
-        self.add_timer(t)
-        return t
+        tmr = timer.Timer(seconds, cb, *args, **kw)
+        self.add_timer(tmr)
+        return tmr
 
     # for debugging:
 

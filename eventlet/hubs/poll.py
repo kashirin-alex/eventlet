@@ -2,7 +2,7 @@ import errno
 import sys
 
 from eventlet import patcher
-from eventlet.hubs.hub import BaseHub, READ, WRITE, noop
+from eventlet.hubs.hub import BaseHub
 from eventlet.support import get_errno, clear_sys_exc_info
 
 select = patcher.original('select')
