@@ -436,8 +436,8 @@ class BaseHub(object):
         for exp in sorted(t):
             when = self.clock()
             if when < exp:
-                sleep_time = exp - when
-                return 60.0 if sleep_time > 60.0 else (sleep_time if sleep_time > -0.00001 else 0.0)
+                sleep_time = exp - when - 0.00001
+                return 60.0 if sleep_time > 60.0 else (sleep_time if sleep_time > 0 else 0)
             tmr = t.pop(exp)
             if tmr.called:
                 continue
