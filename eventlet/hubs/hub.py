@@ -405,8 +405,8 @@ class BaseHub(object):
         found = False
         if self.timing:
             i = 0
-            while True:
-                print (i , len(self.timing))
+            l_tg = len(self.timing)
+            while l_tg > i:
                 if scheduled_time < self.timing[i]:
                     self.timing.insert(i, scheduled_time)
                     found = True
