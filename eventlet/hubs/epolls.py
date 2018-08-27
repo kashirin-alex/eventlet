@@ -26,7 +26,7 @@ class Hub(poll.Hub):
         new = not (fileno in self.listeners_read or fileno in self.listeners_write)
         listener = BaseHub.add(self, evtype, fileno, cb, tb, mac)
         try:
-            # Means we've added a new listener
+            # new=True, Means we've added a new listener
             self.register(fileno, new=new)
         except IOError as ex:    # ignore EEXIST, #80
             if get_errno(ex) != errno.EEXIST:
