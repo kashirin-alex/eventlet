@@ -352,13 +352,59 @@ class BaseHub(object):
         try:
             self.running = True
             self.stopping = False
+
+            debug_blocking = self.debug_blocking
+            t = self.timers
+            nxt_t = self.next_timers
+
+            push_timers = 24
+
             while not self.stopping:
 
                 while self.closed:
                     # We ditch all of these first.
                     self.close_one()
 
-                self.wait(self.exec_timers())
+                while True:
+                    while nxt_t:
+                        heappush(t, nxt_t.pop(-1))
+
+                    if not t:
+                        break
+
+                    exp, tmr = t[0]
+
+                    if tmr.called:
+                        heappop(t)
+                        continue
+
+                    if push_timers == 0:
+                        if self.readers or self.writers:
+                            self.wait(0)
+                        push_timers = 24
+                    else:
+                        push_timers -= 1
+
+                    sleep_time = exp - self.clock()
+                    if sleep_time > 0:
+                        self.wait(sleep_time)
+                        continue
+
+                    heappop(t)
+
+                    if debug_blocking:
+                        self.block_detect_pre()
+                    try:
+                        tmr()
+                    except self.SYSTEM_EXCEPTIONS:
+                        raise
+                    except:
+                        self.squelch_timer_exception(tmr, sys.exc_info())
+                        clear_sys_exc_info()
+                    if debug_blocking:
+                        self.block_detect_post()
+
+                self.wait(60)
 
             else:
                 del self.timers[:]
