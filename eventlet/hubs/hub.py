@@ -131,7 +131,8 @@ class BaseHub(object):
         self.lclass = FdListener
 
         self.clock = default_clock if clock is None else clock
-        self.timers = []
+        # self.timers = []
+        self.timers = {}
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -397,7 +398,8 @@ class BaseHub(object):
 
     def add_timer(self, tmr):
         scheduled_time = self.clock() + tmr.seconds
-        heappush(self.timers, (scheduled_time, tmr))
+        # heappush(self.timers, (scheduled_time, tmr))
+        self.timers[scheduled_time] = tmr
         return scheduled_time
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
@@ -432,10 +434,13 @@ class BaseHub(object):
         push_timers = 2
 
         while t:
-            exp, tmr = t[0]
+            # exp, tmr = t[0]
+            exp = sorted(t)[0]
 
-            if tmr.called:
-                heappop(t)
+            # if tmr.called:
+            if t[exp].called:
+                # heappop(t)
+                t.pop(exp)
                 continue
 
             sleep_time = exp - self.clock()
@@ -443,7 +448,8 @@ class BaseHub(object):
                 return sleep_time
             delay = abs(sleep_time)
 
-            heappop(t)
+            # heappop(t)
+            tmr = t.pop(exp)
 
             if debug_blocking:
                 self.block_detect_pre()
