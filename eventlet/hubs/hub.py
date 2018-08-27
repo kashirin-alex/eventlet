@@ -435,9 +435,11 @@ class BaseHub(object):
         delay = 0
         push_timers = 24
 
-        while t:
+        while True:
             while nxt_t:
-                heappush(self.timers, nxt_t.pop(-1))
+                heappush(t, nxt_t.pop(-1))
+            if not t:
+                break
 
             exp, tmr = t[0]
 
