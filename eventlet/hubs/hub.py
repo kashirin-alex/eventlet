@@ -463,6 +463,7 @@ class BaseHub(object):
     def add_timer(self, tmr):
         scheduled_time = self.clock() + tmr.seconds
         self.next_timers.append((scheduled_time, tmr))
+        # This can be a place to interrupt a 60 seconds(no timers) poll wait, if new scheduled is below.
         return scheduled_time
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
