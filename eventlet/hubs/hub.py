@@ -379,9 +379,8 @@ class BaseHub(object):
                 while next_timers:
                     # apply next timers
                     tmr = next_timers.pop(-1)
-                    if tmr.called:
-                        continue
-                    heappush(timers, (tmr.scheduled_time, tmr))
+                    if not tmr.called:
+                        heappush(timers, (tmr.scheduled_time, tmr))
 
                 if not timers:
                     # wait for fd signals
