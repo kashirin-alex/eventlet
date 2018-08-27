@@ -377,9 +377,10 @@ class BaseHub(object):
                     close_one()
 
                 while next_timers:
-                    # apply next timers
                     tmr = next_timers.pop(-1)
-                    heappush(timers, (tmr.scheduled_time, tmr))
+                    if not tmr.called:
+                        # apply new timers
+                        heappush(timers, (tmr.scheduled_time, tmr))
 
                 if not timers:
                     # wait for fd signals
@@ -399,6 +400,7 @@ class BaseHub(object):
                     if readers or writers:
                         wait(0)
                     push_timers = int(len(timers)/4)
+                    # portion of the timers that should be called before checking for FD signals can be configurable
                 else:
                     push_timers -= 1
 
