@@ -378,9 +378,7 @@ class BaseHub(object):
 
                 while nxt_t:
                     # apply next timers
-                    tmr = nxt_t.pop(-1)
-                    if not tmr[1].called:
-                        heappush(t, tmr)
+                    heappush(t, nxt_t.pop(-1))
 
                 if not t:
                     # wait for fd signals
