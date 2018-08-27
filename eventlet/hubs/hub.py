@@ -430,14 +430,16 @@ class BaseHub(object):
         t = timer.Timer(seconds, cb, *args, **kw)
         self.add_timer(t)
         return t
-
+    
     def exec_timers(self):
         t = self.timers
-        for exp in sorted(t):
+        while t:
+            exp = sorted(t)[0]
             when = self.clock()
             if when < exp:
                 sleep_time = exp - when - 0.00001
                 return 60.0 if sleep_time > 60.0 else (sleep_time if sleep_time > 0 else 0)
+
             tmr = t.pop(exp)
             if tmr.called:
                 continue
@@ -448,6 +450,7 @@ class BaseHub(object):
             except:
                 self.squelch_timer_exception(tmr, sys.exc_info())
                 clear_sys_exc_info()
+
         return 60.0
 
     # for debugging:
