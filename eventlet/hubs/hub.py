@@ -404,7 +404,7 @@ class BaseHub(object):
         return scheduled_time
 
     def timer_canceled(self, tmr):
-        del self.timers[tmr.scheduled_time]
+        self.timers.pop(tmr.scheduled_time, None)
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
