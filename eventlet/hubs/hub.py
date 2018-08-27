@@ -132,9 +132,7 @@ class BaseHub(object):
         self.stopping = False
         self.running = False
         self.timers = []
-        self.next_timers = []
         self.lclass = FdListener
-        self.timers_canceled = 0
         self.debug_exceptions = True
         self.debug_blocking = False
         self.debug_blocking_resolution = 1
@@ -265,8 +263,10 @@ class BaseHub(object):
         l = self.readers.get(fileno)
         if l:
             listeners.append(l)
-        listeners.extend(self.secondaries[READ].pop(fileno, ()))
-        listeners.extend(self.secondaries[WRITE].pop(fileno, ()))
+        if fileno in self.secondaries[READ]:
+            listeners.extend(self.secondaries[READ][fileno])
+        if fileno in self.secondaries[WRITE]:
+            listeners.extend(self.secondaries[WRITE][fileno])
         for listener in listeners:
             try:
                 listener.cb(fileno)
@@ -350,20 +350,17 @@ class BaseHub(object):
                     # We ditch all of these first.
                     self.close_one()
 
-                self.prepare_timers()
                 if self.debug_blocking:
                     self.block_detect_pre()
-                self.fire_timers(self.clock())
+
+                sleep_time = self.fire_timers()
+
                 if self.debug_blocking:
                     self.block_detect_post()
-                self.prepare_timers()
 
-                sleep_time = self.timers[0][0] - self.clock() if self.timers else 60.0
-                self.wait(sleep_time if sleep_time > 0 else 0)
+                self.wait(sleep_time)
             else:
-                self.timers_canceled = 0
                 del self.timers[:]
-                del self.next_timers[:]
         finally:
             self.running = False
             self.stopping = False
@@ -402,31 +399,11 @@ class BaseHub(object):
 
     def add_timer(self, tmr):
         scheduled_time = self.clock() + tmr.seconds
-        self.next_timers.append((scheduled_time, tmr))
+        self.timers[scheduled_time] = tmr
         return scheduled_time
 
     def timer_canceled(self, tmr):
-        self.timers_canceled += 1
-        len_timers = len(self.timers) + len(self.next_timers)
-        if len_timers > 1000 and len_timers / 2 <= self.timers_canceled:
-            self.timers_canceled = 0
-            timers = [t for t in self.timers if not t[1].called]
-            del self.timers[:]
-            self.timers += timers
-            timers = [t for t in self.next_timers if not t[1].called]
-            del self.next_timers[:]
-            self.next_timers += timers
-            heapq.heapify(self.timers)
-
-    def prepare_timers(self):
-        heappush = heapq.heappush
-        t = self.timers
-        for item in self.next_timers:
-            if item[1].called:
-                self.timers_canceled -= 1
-            else:
-                heappush(t, item)
-        del self.next_timers[:]
+        del self.timers[tmr.scheduled_time]
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
@@ -453,28 +430,25 @@ class BaseHub(object):
         self.add_timer(t)
         return t
 
-    def fire_timers(self, when):
+    def fire_timers(self):
+        when = self.clock()
         t = self.timers
-        heappop = heapq.heappop
 
-        while t:
-            exp, tmr = t[0]
-
+        for exp in sorted(t):
             if when < exp:
-                break
-
-            heappop(t)
-
+                sleep_for = exp-when
+                return sleep_for if sleep_for > 0 else 0
+            tmr = t.pop(exp)
+            if tmr.called:
+                continue
             try:
-                if tmr.called:
-                    self.timers_canceled -= 1
-                else:
-                    tmr()
+                tmr()
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
                 self.squelch_timer_exception(tmr, sys.exc_info())
                 clear_sys_exc_info()
+        return 60.0
 
     # for debugging:
 
@@ -485,7 +459,7 @@ class BaseHub(object):
         return self.writers.values()
 
     def get_timers_count(self):
-        return len(self.timers) + len(self.next_timers)
+        return len(self.timers)
 
     def set_debug_listeners(self, value):
         self.lclass = DebugListener if value else FdListener
