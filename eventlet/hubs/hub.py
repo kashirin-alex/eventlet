@@ -239,11 +239,11 @@ class BaseHub(object):
 
         fileno = listener.fileno
         evtype = listener.evtype
-        self.listeners[evtype].pop(fileno, None)
-        # migrate a secondary listener to be the primary listener
         sec = self.secondaries[evtype].get(fileno, None)
         if not sec:
+            self.listeners[evtype].pop(fileno, None)
             return
+        # migrate a secondary listener to be the primary listener
         self.listeners[evtype][fileno] = sec.pop(0)
         if not sec:
             del self.secondaries[evtype][fileno]
@@ -267,10 +267,12 @@ class BaseHub(object):
         l = self.readers.get(fileno)
         if l:
             listeners.append(l)
+
         if fileno in self.secondaries[READ]:
-            listeners.extend(self.secondaries[READ][fileno])
+            listeners += self.secondaries[READ][fileno]
         if fileno in self.secondaries[WRITE]:
-            listeners.extend(self.secondaries[WRITE][fileno])
+            listeners += self.secondaries[WRITE][fileno]
+
         for listener in listeners:
             try:
                 listener.cb(fileno)
@@ -429,7 +431,7 @@ class BaseHub(object):
         debug_blocking = self.debug_blocking
         t = self.timers
         delay = 0
-        push_timers = 100
+        push_timers = 33
         when = self.clock()
         while t:
             exp, tmr = t[0]
@@ -442,7 +444,7 @@ class BaseHub(object):
                 if self.readers or self.writers:
                     return 0
                 when = self.clock()
-                push_timers = 100
+                push_timers = 33
             else:
                 push_timers -= 1
 
