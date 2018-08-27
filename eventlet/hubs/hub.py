@@ -350,19 +350,13 @@ class BaseHub(object):
             self.running = True
             self.stopping = False
             while not self.stopping:
+
                 while self.closed:
                     # We ditch all of these first.
                     self.close_one()
 
-                if self.debug_blocking:
-                    self.block_detect_pre()
+                self.wait(self.exec_timers())
 
-                sleep_time = self.exec_timers()
-
-                if self.debug_blocking:
-                    self.block_detect_post()
-                # print (sleep_time, self.listeners) /
-                self.wait(sleep_time)
             else:
                 del self.timers[:]
         finally:
@@ -405,9 +399,6 @@ class BaseHub(object):
         scheduled_time = self.clock() + tmr.seconds
         heappush(self.timers, (scheduled_time, tmr))
         return scheduled_time
-
-    def timer_canceled(self, tmr):
-        return
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
@@ -452,7 +443,11 @@ class BaseHub(object):
             heappop(t)
 
             try:
+                if self.debug_blocking:
+                    self.block_detect_pre()
                 tmr()
+                if self.debug_blocking:
+                    self.block_detect_post()
                 return 0.0
             except self.SYSTEM_EXCEPTIONS:
                 raise

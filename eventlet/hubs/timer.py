@@ -71,7 +71,6 @@ class Timer(object):
         if self.called:
             return
         self.called = True
-        hubs.get_hub().timer_canceled(self)
         self.tpl = None
 
     # No default ordering in 3.x. heapq uses <
