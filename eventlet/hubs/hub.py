@@ -432,7 +432,6 @@ class BaseHub(object):
         debug_blocking = self.debug_blocking
         t = self.timers
         nxt_t = self.next_timers
-        delay = 0
         push_timers = 24
 
         while True:
@@ -455,9 +454,8 @@ class BaseHub(object):
                 push_timers -= 1
 
             sleep_time = exp - self.clock()
-            if sleep_time > delay:
-                return sleep_time-delay
-            delay = abs(sleep_time)
+            if sleep_time > 0:
+                return sleep_time
 
             heappop(t)
 
