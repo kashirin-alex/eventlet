@@ -436,12 +436,13 @@ class BaseHub(object):
         delay = 0.0
         while t:
             exp = sorted(t)[0]
-            sleep_time = exp - self.clock() - delay
+            sleep_time = exp - self.clock()  # - delay
             if sleep_time > 0:
                 return sleep_time/2 if sleep_time > delay else sleep_time
-            delay -= sleep_time
+            # delay -= sleep_time
 
             tmr = t.pop(exp)
+
             if tmr.called:
                 continue
             try:
