@@ -387,10 +387,9 @@ class BaseHub(object):
                     push_timers -= 1
 
                 sleep_time = exp - self.clock()
-                if sleep_time > delay:
+                if sleep_time > 0:
                     self.wait(sleep_time)
                     continue
-                delay = abs(sleep_time)
 
                 heappop(t)
 
