@@ -125,14 +125,15 @@ class BaseHub(object):
         self.listeners = {READ: self.readers, WRITE: self.writers}
         self.secondaries = {READ: {}, WRITE: {}}
         self.closed = []
+        self.lclass = FdListener
 
         self.clock = default_clock if clock is None else clock
+        self.timers = {}
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
         self.running = False
-        self.timers = []
-        self.lclass = FdListener
+
         self.debug_exceptions = True
         self.debug_blocking = False
         self.debug_blocking_resolution = 1
