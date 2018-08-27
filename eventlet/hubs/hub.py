@@ -439,10 +439,10 @@ class BaseHub(object):
         delay = 0
         while t:
             exp, tmr = t[0]
-            sleep_time = exp - self.clock() - delay
-            if sleep_time > 0:
+            sleep_time = exp - self.clock()
+            if sleep_time > delay:
                 return sleep_time
-            delay = sleep_time - delay
+            delay = abs(sleep_time)
             heappop(t)
 
             if tmr.called:
