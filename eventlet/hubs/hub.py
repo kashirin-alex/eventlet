@@ -358,7 +358,7 @@ class BaseHub(object):
 
                 if self.debug_blocking:
                     self.block_detect_post()
-                print (sleep_time)
+                # print (sleep_time, self.listeners) /
                 self.wait(sleep_time)
             else:
                 del self.timers[:]
@@ -451,8 +451,7 @@ class BaseHub(object):
             except:
                 self.squelch_timer_exception(tmr, sys.exc_info())
                 clear_sys_exc_info()
-
-        return 5.0
+        return 60.0
 
     # for debugging:
 
