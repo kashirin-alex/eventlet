@@ -357,7 +357,8 @@ class BaseHub(object):
             t = self.timers
             nxt_t = self.next_timers
 
-            push_timers = 24
+            push_timers = 99
+            delay = 0
 
             while not self.stopping:
 
@@ -381,14 +382,15 @@ class BaseHub(object):
                 if push_timers == 0:
                     if self.readers or self.writers:
                         self.wait(0)
-                    push_timers = 24
+                    push_timers = int(len(t)/4)
                 else:
                     push_timers -= 1
 
                 sleep_time = exp - self.clock()
-                if sleep_time > 0:
+                if sleep_time > delay:
                     self.wait(sleep_time)
                     continue
+                delay = abs(sleep_time)
 
                 heappop(t)
 
