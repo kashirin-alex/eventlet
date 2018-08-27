@@ -400,6 +400,9 @@ class BaseHub(object):
 
     def add_timer(self, tmr):
         scheduled_time = self.clock() + tmr.seconds
+        if scheduled_time in self.timers:
+            print (self.timers)
+            exit(1)
         self.timers[scheduled_time] = tmr
         return scheduled_time
 
