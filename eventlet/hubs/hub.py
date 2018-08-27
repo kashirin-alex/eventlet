@@ -453,7 +453,7 @@ class BaseHub(object):
 
             try:
                 tmr()
-                return None
+                return 0.0
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
