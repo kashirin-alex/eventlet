@@ -439,7 +439,7 @@ class BaseHub(object):
             sleep_time = exp - self.clock() - delay
             if sleep_time > 0:
                 return sleep_time/2 if sleep_time > 0.0001 else sleep_time
-            delay = sleep_time + delay
+            delay -= sleep_time
 
             tmr = t.pop(exp)
             if tmr.called:
