@@ -358,7 +358,6 @@ class BaseHub(object):
             nxt_t = self.next_timers
 
             push_timers = 99
-            delay = 0
 
             while not self.stopping:
 
@@ -472,51 +471,6 @@ class BaseHub(object):
         t = timer.Timer(seconds, cb, *args, **kw)
         self.add_timer(t)
         return t
-
-    def exec_timers(self):
-        debug_blocking = self.debug_blocking
-        t = self.timers
-        nxt_t = self.next_timers
-        push_timers = 24
-
-        while True:
-            while nxt_t:
-                heappush(t, nxt_t.pop(-1))
-            if not t:
-                break
-
-            exp, tmr = t[0]
-
-            if tmr.called:
-                heappop(t)
-                continue
-
-            if push_timers == 0:
-                if self.readers or self.writers:
-                    return 0
-                push_timers = 24
-            else:
-                push_timers -= 1
-
-            sleep_time = exp - self.clock()
-            if sleep_time > 0:
-                return sleep_time
-
-            heappop(t)
-
-            if debug_blocking:
-                self.block_detect_pre()
-            try:
-                tmr()
-            except self.SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_timer_exception(tmr, sys.exc_info())
-                clear_sys_exc_info()
-            if debug_blocking:
-                self.block_detect_post()
-
-        return 60.0
 
     # for debugging:
 
