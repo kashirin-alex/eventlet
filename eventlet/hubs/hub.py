@@ -447,7 +447,7 @@ class BaseHub(object):
         delay = 0
         push_timers = 2
         when = self.clock()
-        while t:
+        while tg:
             # exp, tmr = t[0]
             exp = tg[0]
             tmr = t[exp]
