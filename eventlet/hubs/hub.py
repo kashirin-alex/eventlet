@@ -359,7 +359,7 @@ class BaseHub(object):
                 if self.debug_blocking:
                     self.block_detect_post()
 
-                self.wait(sleep_time)
+                self.wait(0.002 if sleep_time > 5 else 0.002)
             else:
                 del self.timers[:]
         finally:
@@ -437,8 +437,8 @@ class BaseHub(object):
 
         for exp in sorted(t):
             if when < exp:
-                sleep_for = exp - self.clock()
-                return sleep_for if sleep_for > 0 else 0
+                sleep_time = exp - self.clock()
+                return sleep_time if sleep_time > 0 else 0
             tmr = t.pop(exp)
             if tmr.called:
                 continue
