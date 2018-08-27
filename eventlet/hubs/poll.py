@@ -29,9 +29,9 @@ class Hub(BaseHub):
 
     def register(self, fileno, new=False):
         mask = 0
-        if self.readers.get(fileno):
+        if self.listeners_read.get(fileno):
             mask |= READ_MASK | EXC_MASK
-        if self.writers.get(fileno):
+        if self.listeners_write.get(fileno):
             mask |= WRITE_MASK | EXC_MASK
         try:
             if mask:
@@ -68,7 +68,7 @@ class Hub(BaseHub):
         return self.poll.poll(int(seconds * 1000.0))
 
     def wait(self, seconds=None):
-        if not self.readers and not self.writers:
+        if not self.listeners_read and not self.listeners_write:
             if not seconds:
                 return
         try:
@@ -94,18 +94,18 @@ class Hub(BaseHub):
                 self.remove_descriptor(fileno)
                 continue
             if event & READ_MASK:
-                l = self.readers.get(fileno)
+                l = self.listeners_read.get(fileno)
                 if l:
                     callbacks.add((l, fileno))
             if event & WRITE_MASK:
-                l = self.writers.get(fileno)
+                l = self.listeners_write.get(fileno)
                 if l:
                     callbacks.add((l, fileno))
             if event & EXC_MASK:
-                l = self.readers.get(fileno)
+                l = self.listeners_read.get(fileno)
                 if l:
                     callbacks.add((l, fileno))
-                l = self.writers.get(fileno)
+                l = self.listeners_write.get(fileno)
                 if l:
                     callbacks.add((l, fileno))
 
