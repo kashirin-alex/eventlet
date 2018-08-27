@@ -435,7 +435,7 @@ class BaseHub(object):
         t = self.timers
         while t:
             exp = sorted(t)[0]
-            when = self.clock() + 0.00001
+            when = self.clock() + 0.0001
             if when < exp:
                 sleep_time = exp - when
                 return 60.0 if sleep_time > 60.0 else (sleep_time if sleep_time > 0 else 0)
