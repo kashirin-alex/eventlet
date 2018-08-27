@@ -19,7 +19,7 @@ class Hub(BaseHub):
         """ Iterate through fds, removing the ones that are bad per the
         operating system.
         """
-        for fd in list(self.readers) + list(self.writers):
+        for fd in list(self.listeners_read) + list(self.listeners_write):
             try:
                 select.select([fd], [], [], 0)
             except select.error as e:
@@ -27,14 +27,14 @@ class Hub(BaseHub):
                     self.remove_descriptor(fd)
 
     def wait(self, seconds=None):
-        if not self.readers and not self.writers:
+        if not self.listeners_read and not self.listeners_write:
             if seconds:
                 ev_sleep(seconds)
             return
 
         try:
-            r, w, er = select.select(self.readers.keys(), self.writers.keys(),
-                                     list(self.readers) + list(self.writers), seconds)
+            r, w, er = select.select(self.listeners_read.keys(), self.listeners_write.keys(),
+                                     list(self.listeners_read) + list(self.listeners_write), seconds)
         except select.error as e:
             if get_errno(e) == errno.EINTR:
                 return
@@ -45,14 +45,14 @@ class Hub(BaseHub):
                 raise
 
         for fileno in er:
-            l = self.readers.get(fileno)
+            l = self.listeners_read.get(fileno)
             if l:
                 l.cb(fileno)
-            l = self.writers.get(fileno)
+            l = self.listeners_write.get(fileno)
             if l:
                 l.cb(fileno)
 
-        for listeners, events in ((self.readers, r), (self.writers, w)):
+        for listeners, events in ((self.listeners_read, r), (self.listeners_write, w)):
             for fileno in events:
                 try:
                     l = listeners.get(fileno)

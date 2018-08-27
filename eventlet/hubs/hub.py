@@ -125,9 +125,9 @@ class BaseHub(object):
     WRITE = WRITE
 
     def __init__(self, clock=None):
-        self.readers = {}
-        self.writers = {}
-        self.listeners = {READ: self.readers, WRITE: self.writers}
+        self.listeners_read = {}
+        self.listeners_write = {}
+        self.listeners = {READ: self.listeners_read, WRITE: self.listeners_write}
         self.secondaries = {READ: {}, WRITE: {}}
         self.closed = []
         self.lclass = FdListener
@@ -177,7 +177,7 @@ class BaseHub(object):
         close operations from accidentally shutting down the wrong OS thread.
         """
         listener = self.lclass(evtype, fileno, cb, tb, mark_as_closed)
-        bucket = self.listeners[evtype]
+        bucket = getattr(self, 'listeners_'+evtype)
         if fileno in bucket:
             if g_prevent_multiple_readers:
                 raise RuntimeError(
@@ -213,13 +213,13 @@ class BaseHub(object):
         # For the primary listeners, we actually need to call remove,
         # which may modify the underlying OS polling objects.
 
-        listener = self.readers.get(fileno)
+        listener = self.listeners_read.get(fileno)
         if listener:
             found = True
             self.closed.append(listener)
             self.remove(listener)
             listener.defang()
-        listener = self.writers.get(fileno)
+        listener = self.listeners_write.get(fileno)
         if listener:
             found = True
             self.closed.append(listener)
@@ -244,10 +244,10 @@ class BaseHub(object):
         evtype = listener.evtype
         sec = self.secondaries[evtype].get(fileno, None)
         if not sec:
-            self.listeners[evtype].pop(fileno, None)
+            getattr(self, 'listeners_'+evtype).pop(fileno, None)
             return
         # migrate a secondary listener to be the primary listener
-        self.listeners[evtype][fileno] = sec.pop(0)
+        getattr(self, 'listeners_' + evtype)[fileno] = sec.pop(0)
         if not sec:
             del self.secondaries[evtype][fileno]
 
@@ -264,10 +264,10 @@ class BaseHub(object):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
         listeners = []
-        l = self.writers.get(fileno)
+        l = self.listeners_write.get(fileno)
         if l:
             listeners.append(l)
-        l = self.readers.get(fileno)
+        l = self.listeners_read.get(fileno)
         if l:
             listeners.append(l)
 
@@ -357,8 +357,8 @@ class BaseHub(object):
 
             debug_blocking = self.debug_blocking
 
-            writers = self.writers
-            readers = self.readers
+            writers = self.listeners_write
+            readers = self.listeners_read
             closed = self.closed
 
             timers = self.timers
@@ -405,12 +405,14 @@ class BaseHub(object):
                     push_timers -= 1
 
                 sleep_time = exp - self.clock()
-                if sleep_time > 0:
+                if sleep_time > 0:  # > delay
                     # wait for fd signals
                     wait(sleep_time)
                     continue
+                # delay = abs(sleep_time)
+                # delicate, a split above executes to early, Would current delay indicate on next timer?
 
-                # remove timer
+                # remove current evaluated timer
                 heappop(timers)
 
                 if debug_blocking:
@@ -496,10 +498,10 @@ class BaseHub(object):
     # for debugging:
 
     def get_readers(self):
-        return self.readers.values()
+        return self.listeners_read.values()
 
     def get_writers(self):
-        return self.writers.values()
+        return self.listeners_write.values()
 
     def get_timers_count(self):
         return len(self.timers)
