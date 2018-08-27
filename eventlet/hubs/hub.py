@@ -402,14 +402,16 @@ class BaseHub(object):
         # heappush(self.timers, (scheduled_time, tmr))
 
         self.timers[scheduled_time] = tmr
+        found = False
         if self.timing:
             i = 0
             while True:
                 if scheduled_time < self.timing[i]:
                     self.timing.insert(i, scheduled_time)
+                    found = True
                     break
                 i += 1
-        else:
+        if not found:
             self.timing.append(scheduled_time)
         return scheduled_time
 
