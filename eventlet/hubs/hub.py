@@ -132,6 +132,7 @@ class BaseHub(object):
 
         self.clock = default_clock if clock is None else clock
         self.timers = []
+        self.next_timers = []
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -399,7 +400,7 @@ class BaseHub(object):
 
     def add_timer(self, tmr):
         scheduled_time = self.clock() + tmr.seconds
-        heappush(self.timers, (scheduled_time, tmr))
+        self.next_timers.append((scheduled_time, tmr))
         return scheduled_time
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
@@ -430,9 +431,14 @@ class BaseHub(object):
     def exec_timers(self):
         debug_blocking = self.debug_blocking
         t = self.timers
+        nxt_t = self.next_timers
         delay = 0
         push_timers = 24
+
         while t:
+            while nxt_t:
+                heappush(self.timers, nxt_t.pop(-1))
+
             exp, tmr = t[0]
 
             if tmr.called:
