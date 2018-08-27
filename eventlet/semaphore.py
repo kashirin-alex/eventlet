@@ -96,9 +96,8 @@ class Semaphore(object):
             elif timeout < 0:
                 raise ValueError("timeout value must be strictly positive")
 
-        current_thread = eventlet.getcurrent()
-
         if self.counter <= 0 or self._waiters:
+            current_thread = eventlet.getcurrent()
             if current_thread not in self._waiters:
                 self._waiters.append(current_thread)
             try:

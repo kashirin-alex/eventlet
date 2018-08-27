@@ -112,12 +112,14 @@ def alarm_handler(signum, frame):
     import inspect
     raise RuntimeError("Blocking detector ALARMED at" + str(inspect.getframeinfo(frame)))
 
+SYSTEM_EXCEPTIONS = (KeyboardInterrupt, SystemExit)
+
 
 class BaseHub(object):
     """ Base hub class for easing the implementation of subclasses that are
     specific to a particular underlying event architecture. """
 
-    SYSTEM_EXCEPTIONS = (KeyboardInterrupt, SystemExit)
+    SYSTEM_EXCEPTIONS = SYSTEM_EXCEPTIONS
 
     READ = READ
     WRITE = WRITE
@@ -354,52 +356,68 @@ class BaseHub(object):
             self.stopping = False
 
             debug_blocking = self.debug_blocking
+
+            writers = self.writers
+            readers = self.readers
+            closed = self.closed
+
             t = self.timers
             nxt_t = self.next_timers
+
+            wait = self.wait
+            close_one = self.close_one
+            squelch_timer_exception = self.squelch_timer_exception
 
             push_timers = 99
 
             while not self.stopping:
 
-                while self.closed:
+                while closed:
                     # We ditch all of these first.
-                    self.close_one()
+                    close_one()
 
                 while nxt_t:
+                    # apply next timers
                     heappush(t, nxt_t.pop(-1))
 
                 if not t:
-                    self.wait(60)
+                    # wait for fd signals
+                    wait(60)
                     continue
 
+                # current evaluated timer
                 exp, tmr = t[0]
 
                 if tmr.called:
+                    # remove called timer
                     heappop(t)
                     continue
 
                 if push_timers == 0:
-                    if self.readers or self.writers:
-                        self.wait(0)
+                    # check for new fd signals
+                    if readers or writers:
+                        wait(0)
                     push_timers = int(len(t)/4)
                 else:
                     push_timers -= 1
 
                 sleep_time = exp - self.clock()
                 if sleep_time > 0:
-                    self.wait(sleep_time)
+                    # wait for fd signals
+                    wait(sleep_time)
                     continue
 
+                # remove timer
                 heappop(t)
 
                 if debug_blocking:
                     self.block_detect_pre()
                 try:
                     tmr()
-                except self.SYSTEM_EXCEPTIONS:
+                except SYSTEM_EXCEPTIONS:
                     raise
                 except:
-                    self.squelch_timer_exception(tmr, sys.exc_info())
+                    squelch_timer_exception(tmr, sys.exc_info())
                     clear_sys_exc_info()
                 if debug_blocking:
                     self.block_detect_post()
