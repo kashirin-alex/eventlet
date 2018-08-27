@@ -433,6 +433,11 @@ class BaseHub(object):
             self.running = False
             self.stopping = False
 
+    @staticmethod
+    def prepare_timers():
+        # intermediate dummy place-holder
+        return
+
     def abort(self, wait=False):
         """Stop the runloop. If run is executing, it will exit after
         completing the next runloop iteration.
