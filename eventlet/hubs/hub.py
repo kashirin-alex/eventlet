@@ -429,8 +429,8 @@ class BaseHub(object):
         debug_blocking = self.debug_blocking
         t = self.timers
         delay = 0
-        push_timers = 3
-        
+        push_timers = 2
+
         while t:
             exp, tmr = t[0]
 
