@@ -361,8 +361,8 @@ class BaseHub(object):
             readers = self.readers
             closed = self.closed
 
-            t = self.timers
-            nxt_t = self.next_timers
+            timers = self.timers
+            next_timers = self.next_timers
 
             wait = self.wait
             close_one = self.close_one
@@ -376,29 +376,29 @@ class BaseHub(object):
                     # We ditch all of these first.
                     close_one()
 
-                while nxt_t:
+                while next_timers:
                     # apply next timers
-                    tmr = nxt_t.pop(-1)
-                    heappush(t, (tmr.scheduled_time, tmr))
+                    tmr = next_timers.pop(-1)
+                    heappush(timers, (tmr.scheduled_time, tmr))
 
-                if not t:
+                if not timers:
                     # wait for fd signals
                     wait(60)
                     continue
 
                 # current evaluated timer
-                exp, tmr = t[0]
+                exp, tmr = timers[0]
 
                 if tmr.called:
                     # remove called timer
-                    heappop(t)
+                    heappop(timers)
                     continue
 
                 if push_timers == 0:
                     # check for new fd signals
                     if readers or writers:
                         wait(0)
-                    push_timers = int(len(t)/4)
+                    push_timers = int(len(timers)/4)
                 else:
                     push_timers -= 1
 
@@ -409,7 +409,7 @@ class BaseHub(object):
                     continue
 
                 # remove timer
-                heappop(t)
+                heappop(timers)
 
                 if debug_blocking:
                     self.block_detect_pre()
@@ -465,7 +465,6 @@ class BaseHub(object):
         tmr.scheduled_time = self.clock() + tmr.seconds
         self.next_timers.append(tmr)
         # This can be a place to interrupt a 60 seconds(no timers) poll wait, if new scheduled is below.
-        return
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
@@ -475,9 +474,9 @@ class BaseHub(object):
             *args: Arguments to pass to the callable when called.
             **kw: Keyword arguments to pass to the callable when called.
         """
-        t = timer.LocalTimer(seconds, cb, *args, **kw)
-        self.add_timer(t)
-        return t
+        tmr = timer.LocalTimer(seconds, cb, *args, **kw)
+        self.add_timer(tmr)
+        return tmr
 
     def schedule_call_global(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
@@ -488,9 +487,9 @@ class BaseHub(object):
             *args: Arguments to pass to the callable when called.
             **kw: Keyword arguments to pass to the callable when called.
         """
-        t = timer.Timer(seconds, cb, *args, **kw)
-        self.add_timer(t)
-        return t
+        tmr = timer.Timer(seconds, cb, *args, **kw)
+        self.add_timer(tmr)
+        return tmr
 
     # for debugging:
 
