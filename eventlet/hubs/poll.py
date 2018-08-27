@@ -64,8 +64,10 @@ class Hub(BaseHub):
             pass
 
     def do_poll(self, seconds):
-        # poll.poll expects integral milliseconds
-        return self.poll.poll(int(seconds * 1000.0))
+        if seconds:
+            # poll.poll expects integral milliseconds
+            return self.poll.poll(int(seconds * 1000.0))
+        return self.poll.poll()
 
     def wait(self, seconds=None):
         if not self.readers and not self.writers:
