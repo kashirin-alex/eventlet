@@ -404,7 +404,7 @@ class BaseHub(object):
         self.timers[scheduled_time] = tmr
         found = False
         if self.timing:
-            i = 0
+            i = 1
             l_tg = len(self.timing)
             while l_tg > i:
                 if scheduled_time < self.timing[i]:
@@ -459,6 +459,14 @@ class BaseHub(object):
                 # heappop(t)
                 continue
 
+            if push_timers == 0:
+                if self.readers or self.writers:
+                    return 0
+                when = self.clock()
+                push_timers = 2
+            else:
+                push_timers -= 1
+
             sleep_time = exp - when
             if sleep_time > delay:
                 return sleep_time
@@ -480,14 +488,6 @@ class BaseHub(object):
                 clear_sys_exc_info()
             if debug_blocking:
                 self.block_detect_post()
-
-            if push_timers == 0:
-                if self.readers or self.writers:
-                    return 0
-                when = self.clock()
-                push_timers = 2
-            else:
-                push_timers -= 1
 
         return 60.0
 
