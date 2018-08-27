@@ -448,7 +448,7 @@ class BaseHub(object):
                 tmr()
                 if self.debug_blocking:
                     self.block_detect_post()
-                return -1
+                return 0
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
