@@ -437,7 +437,7 @@ class BaseHub(object):
 
         for exp in sorted(t):
             if when < exp:
-                sleep_for = exp-when
+                sleep_for = exp - self.clock()
                 return sleep_for if sleep_for > 0 else 0
             tmr = t.pop(exp)
             if tmr.called:
