@@ -33,6 +33,9 @@ else:
     default_clock = monotonic.monotonic
     del monotonic
 
+heappush = heapq.heappush
+heappop = heapq.heappop
+
 g_prevent_multiple_readers = True
 
 READ = "read"
@@ -400,7 +403,7 @@ class BaseHub(object):
 
     def add_timer(self, tmr):
         scheduled_time = self.clock() + tmr.seconds
-        heapq.heappush(self.timers, (scheduled_time, tmr))
+        heappush(self.timers, (scheduled_time, tmr))
         return scheduled_time
 
     def timer_canceled(self, tmr):
@@ -433,8 +436,7 @@ class BaseHub(object):
 
     def exec_timers(self):
         t = self.timers
-        heappop = heapq.heappop
-        delay = 0.0001
+        delay = 0
         while t:
             exp, tmr = t[0]
             sleep_time = exp - self.clock()  # - delay
