@@ -128,7 +128,7 @@ class BaseHub(object):
         self.lclass = FdListener
 
         self.clock = default_clock if clock is None else clock
-        self.timers = {}
+        self.timers = []
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -400,11 +400,11 @@ class BaseHub(object):
 
     def add_timer(self, tmr):
         scheduled_time = self.clock() + tmr.seconds
-        self.timers[scheduled_time] = tmr
+        heapq.heappush(self.timers, tmr)
         return scheduled_time
 
     def timer_canceled(self, tmr):
-        self.timers.pop(tmr.scheduled_time, None)
+        return
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
@@ -433,15 +433,15 @@ class BaseHub(object):
 
     def exec_timers(self):
         t = self.timers
+        heappop = heapq.heappop
         delay = 0.0001
         while t:
-            exp = sorted(t)[0]
+            exp, tmr = t[0]
             sleep_time = exp - self.clock()  # - delay
             if sleep_time > delay:
                 return sleep_time
             # delay -= sleep_time
-
-            tmr = t.pop(exp)
+            heappop(t)
 
             if tmr.called:
                 continue
