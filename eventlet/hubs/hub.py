@@ -365,46 +365,44 @@ class BaseHub(object):
                     # We ditch all of these first.
                     self.close_one()
 
-                while True:
-                    while nxt_t:
-                        heappush(t, nxt_t.pop(-1))
+                while nxt_t:
+                    heappush(t, nxt_t.pop(-1))
 
-                    if not t:
-                        break
+                if not t:
+                    self.wait(60)
+                    continue
 
-                    exp, tmr = t[0]
+                exp, tmr = t[0]
 
-                    if tmr.called:
-                        heappop(t)
-                        continue
-
-                    if push_timers == 0:
-                        if self.readers or self.writers:
-                            self.wait(0)
-                        push_timers = 24
-                    else:
-                        push_timers -= 1
-
-                    sleep_time = exp - self.clock()
-                    if sleep_time > 0:
-                        self.wait(sleep_time)
-                        continue
-
+                if tmr.called:
                     heappop(t)
+                    continue
 
-                    if debug_blocking:
-                        self.block_detect_pre()
-                    try:
-                        tmr()
-                    except self.SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        self.squelch_timer_exception(tmr, sys.exc_info())
-                        clear_sys_exc_info()
-                    if debug_blocking:
-                        self.block_detect_post()
+                if push_timers == 0:
+                    if self.readers or self.writers:
+                        self.wait(0)
+                    push_timers = 24
+                else:
+                    push_timers -= 1
 
-                self.wait(60)
+                sleep_time = exp - self.clock()
+                if sleep_time > 0:
+                    self.wait(sleep_time)
+                    continue
+
+                heappop(t)
+
+                if debug_blocking:
+                    self.block_detect_pre()
+                try:
+                    tmr()
+                except self.SYSTEM_EXCEPTIONS:
+                    raise
+                except:
+                    self.squelch_timer_exception(tmr, sys.exc_info())
+                    clear_sys_exc_info()
+                if debug_blocking:
+                    self.block_detect_post()
 
             else:
                 del self.timers[:]
