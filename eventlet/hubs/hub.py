@@ -434,6 +434,11 @@ class BaseHub(object):
             self.stopping = False
 
     @staticmethod
+    def fire_timers():
+        # intermediate dummy place-holder
+        return
+
+    @staticmethod
     def prepare_timers():
         # intermediate dummy place-holder
         return
