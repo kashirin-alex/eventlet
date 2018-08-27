@@ -400,7 +400,7 @@ class BaseHub(object):
 
     def add_timer(self, tmr):
         scheduled_time = self.clock() + tmr.seconds
-        heapq.heappush(self.timers, tmr)
+        heapq.heappush(self.timers, (scheduled_time, tmr))
         return scheduled_time
 
     def timer_canceled(self, tmr):
