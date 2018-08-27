@@ -429,6 +429,8 @@ class BaseHub(object):
         debug_blocking = self.debug_blocking
         t = self.timers
         delay = 0
+        push_timers = 3
+        
         while t:
             exp, tmr = t[0]
 
@@ -443,21 +445,22 @@ class BaseHub(object):
 
             heappop(t)
 
+            if debug_blocking:
+                self.block_detect_pre()
             try:
-                if debug_blocking:
-                    self.block_detect_pre()
-
                 tmr()
-
-                if debug_blocking:
-                    self.block_detect_post()
-                if self.readers or self.writers:
-                    return 0
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
                 self.squelch_timer_exception(tmr, sys.exc_info())
                 clear_sys_exc_info()
+            if debug_blocking:
+                self.block_detect_post()
+
+            if push_timers == 0 and (self.readers or self.writers):
+                return 0
+            push_timers -= 1
+
         return 60.0
 
     # for debugging:
