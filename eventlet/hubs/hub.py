@@ -468,7 +468,8 @@ class BaseHub(object):
     def add_timer(self, tmr):
         tmr.scheduled_time = self.clock() + tmr.seconds
         self.next_timers.append(tmr)
-        # This can be a place to interrupt a 60 seconds(no timers) poll wait, if new scheduled is below.
+        # This can be a place to interrupt a waiting/sleeping poll,
+        # if the new scheduled timer is below the current sleep time.
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
