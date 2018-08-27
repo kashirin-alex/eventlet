@@ -378,7 +378,8 @@ class BaseHub(object):
 
                 while nxt_t:
                     # apply next timers
-                    heappush(t, nxt_t.pop(-1))
+                    tmr = nxt_t.pop(-1)
+                    heappush(t, (tmr.scheduled_time, tmr))
 
                 if not t:
                     # wait for fd signals
@@ -461,10 +462,10 @@ class BaseHub(object):
             clear_sys_exc_info()
 
     def add_timer(self, tmr):
-        scheduled_time = self.clock() + tmr.seconds
-        self.next_timers.append((scheduled_time, tmr))
+        tmr.scheduled_time = self.clock() + tmr.seconds
+        self.next_timers.append(tmr)
         # This can be a place to interrupt a 60 seconds(no timers) poll wait, if new scheduled is below.
-        return scheduled_time
+        return
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
