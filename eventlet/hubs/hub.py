@@ -144,8 +144,6 @@ class BaseHub(object):
         self.debug_blocking = False
         self.debug_blocking_resolution = 1
         self._old_signal_handler = None
-        self.ev_waiter = eventlet.patcher.original('threading').Event()
-        self.ev_waiter_till = 0
 
     def block_detect_pre(self):
         # shortest alarm we can possibly raise is one second
@@ -388,9 +386,6 @@ class BaseHub(object):
                     if readers or writers:
                         # wait for fd signals
                         wait(60)
-                    else:
-                        # wait for new timers
-                        self.ev_waiter_wait(60)
                     continue
 
                 # current evaluated timer
@@ -412,12 +407,8 @@ class BaseHub(object):
 
                 sleep_time = exp - self.clock()
                 if sleep_time > 0:  # > delay
-                    if readers or writers:
-                        # wait for fd signals
-                        wait(sleep_time)
-                    else:
-                        # wait for new timers
-                        self.ev_waiter_wait(sleep_time)
+                    # wait for fd signals
+                    wait(sleep_time)
                     continue
                 # delay = abs(sleep_time)
                 # delicate, a split above executes to early, Would current delay indicate on next timer?
@@ -442,10 +433,6 @@ class BaseHub(object):
         finally:
             self.running = False
             self.stopping = False
-
-    def ev_waiter_wait(self, seconds):
-        self.ev_waiter_till = self.clock() + seconds
-        self.ev_waiter.wait(60)
 
     @staticmethod
     def fire_timers(when):
@@ -492,11 +479,6 @@ class BaseHub(object):
     def add_timer(self, tmr):
         tmr.scheduled_time = self.clock() + tmr.seconds
         self.next_timers.append(tmr)
-        if self.ev_waiter_till > tmr.scheduled_time:
-            self.ev_waiter_till = 0
-            self.ev_waiter.set()
-        # This can be a place to interrupt a waiting/sleeping poll,
-        # if the new scheduled timer is below the current sleep time.
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have

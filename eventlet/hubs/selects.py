@@ -28,11 +28,9 @@ class Hub(BaseHub):
 
     def wait(self, seconds=None):
         if not self.listeners_read and not self.listeners_write:
-            if not seconds:
+            if seconds is not None:
+                ev_sleep(seconds)
                 return
-            self.ev_waiter_till = self.clock() + seconds
-            self.ev_waiter.wait(seconds)
-            seconds = 0
 
         try:
             r, w, er = select.select(self.listeners_read.keys(), self.listeners_write.keys(),

@@ -68,7 +68,7 @@ class Hub(BaseHub):
 
     def wait(self, seconds=None):
         if not self.listeners_read and not self.listeners_write:
-            if not seconds:
+            if seconds is None:
                 return
         try:
             presult = self.do_poll(seconds)
