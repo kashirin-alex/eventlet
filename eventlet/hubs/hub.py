@@ -144,6 +144,8 @@ class BaseHub(object):
         self.debug_blocking = False
         self.debug_blocking_resolution = 1
         self._old_signal_handler = None
+        self.ev_waiter = eventlet.patcher.original('threading').Event()
+        self.ev_waiter_till = 0
 
     def block_detect_pre(self):
         # shortest alarm we can possibly raise is one second
@@ -384,7 +386,11 @@ class BaseHub(object):
 
                 if not timers:
                     # wait for fd signals
-                    wait(60)
+                    if readers or writers:
+                        wait(60)
+                    else:
+                        self.ev_waiter_till = self.clock() + 60
+                        self.ev_waiter.wait(60)
                     continue
 
                 # current evaluated timer
@@ -478,6 +484,9 @@ class BaseHub(object):
     def add_timer(self, tmr):
         tmr.scheduled_time = self.clock() + tmr.seconds
         self.next_timers.append(tmr)
+        if self.ev_waiter_till > tmr.scheduled_time:
+            self.ev_waiter_till = 0
+            self.ev_waiter.set()
         # This can be a place to interrupt a waiting/sleeping poll,
         # if the new scheduled timer is below the current sleep time.
 

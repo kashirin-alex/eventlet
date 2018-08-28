@@ -6,7 +6,6 @@ from eventlet.hubs.hub import BaseHub
 from eventlet.support import get_errno, clear_sys_exc_info
 
 select = patcher.original('select')
-time = patcher.original('time')
 
 EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
