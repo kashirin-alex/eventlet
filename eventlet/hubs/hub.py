@@ -385,12 +385,12 @@ class BaseHub(object):
                         heappush(timers, (tmr.scheduled_time, tmr))
 
                 if not timers:
-                    # wait for fd signals
                     if readers or writers:
+                        # wait for fd signals
                         wait(60)
                     else:
-                        self.ev_waiter_till = self.clock() + 60
-                        self.ev_waiter.wait(60)
+                        # wait for new timers
+                        self.ev_waiter_wait(60)
                     continue
 
                 # current evaluated timer
@@ -412,8 +412,12 @@ class BaseHub(object):
 
                 sleep_time = exp - self.clock()
                 if sleep_time > 0:  # > delay
-                    # wait for fd signals
-                    wait(sleep_time)
+                    if readers or writers:
+                        # wait for fd signals
+                        wait(sleep_time)
+                    else:
+                        # wait for new timers
+                        self.ev_waiter_wait(sleep_time)
                     continue
                 # delay = abs(sleep_time)
                 # delicate, a split above executes to early, Would current delay indicate on next timer?
@@ -438,6 +442,10 @@ class BaseHub(object):
         finally:
             self.running = False
             self.stopping = False
+
+    def ev_waiter_wait(self, seconds):
+        self.ev_waiter_till = self.clock() + seconds
+        self.ev_waiter.wait(60)
 
     @staticmethod
     def fire_timers(when):
