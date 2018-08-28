@@ -30,7 +30,7 @@ class Hub(BaseHub):
         if not self.listeners_read and not self.listeners_write:
             if seconds is not None:
                 ev_sleep(seconds)
-                return
+            return
 
         try:
             r, w, er = select.select(self.listeners_read.keys(), self.listeners_write.keys(),
