@@ -376,7 +376,6 @@ class GreenSocket(object):
         if self.act_non_blocking:
             return send_method(data, *args)
 
-        _timeout_exc = socket_timeout('timed out')
         while True:
             try:
                 return send_method(data, *args)
@@ -387,7 +386,7 @@ class GreenSocket(object):
 
             try:
                 self._trampoline(self.fd, write=True, timeout=self.gettimeout(),
-                                 timeout_exc=_timeout_exc)
+                                 timeout_exc=socket_timeout('timed out'))
             except IOClosed:
                 raise socket.error(errno.ECONNRESET, 'Connection closed by another thread')
 

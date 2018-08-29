@@ -158,8 +158,7 @@ class _SocketDuckForFd(object):
     def recv(self, buflen):
         while True:
             try:
-                data = os.read(self._fileno, buflen)
-                return data
+                return os.read(self._fileno, buflen)
             except OSError as e:
                 if get_errno(e) not in SOCKET_BLOCKING:
                     raise IOError(*e.args)
@@ -204,8 +203,7 @@ class _SocketDuckForFd(object):
         self._close()
 
     def _close(self):
-        was_closed = self._mark_as_closed()
-        if was_closed:
+        if self._mark_as_closed():  # was_closed?:
             return
         notify_close(self._fileno)
         try:
