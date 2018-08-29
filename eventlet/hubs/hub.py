@@ -368,7 +368,7 @@ class BaseHub(object):
             close_one = self.close_one
             squelch_timer_exception = self.squelch_timer_exception
 
-            # push_timers = 99
+            push_timers = 99
 
             while not self.stopping:
 
@@ -396,14 +396,14 @@ class BaseHub(object):
                     heappop(timers)
                     continue
 
-                # if push_timers == 0:
-                #    # check for new fd signals
-                #    if readers or writers:
-                #        wait(0)
-                #    push_timers = int(len(timers)/4)
-                #    # portion of the timers that should be called before checking for FD signals can be configurable
-                # else:
-                #    push_timers -= 1
+                if push_timers == 0:
+                    # check for new fd signals
+                    if readers or writers:
+                        wait(0)
+                    push_timers = int(len(timers)/10)
+                    # portion of the timers that should be called before checking for FD signals can be configurable
+                else:
+                    push_timers -= 1
 
                 sleep_time = exp - self.clock()
                 if sleep_time > 0:  # > delay
