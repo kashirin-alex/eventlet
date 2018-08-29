@@ -153,23 +153,19 @@ class GreenSSLSocket(_original_sslsocket):
             return socket.sendto(self, data, addr, flags)
 
     def sendall(self, data, flags=0):
-        # *NOTE: gross, copied code from ssl.py becase it's not factored well enough to be used as-is
         if self._sslobj:
             if flags != 0:
                 raise ValueError(
                     "non-zero flags not allowed in calls to sendall() on %s" %
                     self.__class__)
-            amount = len(data)
-            count = 0
             data_to_send = data
-            while (count < amount):
-                v = self.send(data_to_send)
-                count += v
-                if v == 0:
+            while data_to_send:
+                count = self.send(data_to_send)
+                if count == 0:
                     trampoline(self, write=True, timeout_exc=timeout_exc('timed out'))
                 else:
-                    data_to_send = data[count:]
-            return amount
+                    data_to_send = data_to_send[count:]
+            return  # None for success
         else:
             while True:
                 try:
@@ -211,10 +207,9 @@ class GreenSSLSocket(_original_sslsocket):
                     "non-zero flags not allowed in calls to %s() on %s" %
                     plain_socket_function.__name__, self.__class__)
             if into:
-                read = self.read(nbytes, buffer_)
+                return self.read(nbytes, buffer_)
             else:
-                read = self.read(nbytes)
-            return read
+                return self.read(nbytes)
         else:
             while True:
                 try:
@@ -357,7 +352,7 @@ class GreenSSLSocket(_original_sslsocket):
             ca_certs=self.ca_certs,
             do_handshake_on_connect=False,
             suppress_ragged_eofs=self.suppress_ragged_eofs)
-        return (new_ssl, addr)
+        return new_ssl, addr
 
     def dup(self):
         raise NotImplementedError("Can't dup an ssl object")
