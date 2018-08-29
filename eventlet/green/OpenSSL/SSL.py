@@ -17,7 +17,7 @@ class GreenConnection(greenio.GreenSocket):
             # if we're given a Connection object directly, use it;
             # this is used in the inherited accept() method
             fd = ctx
-        super(ConnectionType, self).__init__(fd)
+        super(GreenConnection, self).__init__(fd)
 
     def do_handshake(self):
         """ Perform an SSL handshake (usually called after renegotiate or one of
