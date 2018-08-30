@@ -101,7 +101,6 @@ def use_hub(mod=None):
         _threadlocal.Hub = mod.Hub
     else:
         _threadlocal.Hub = mod
-    HubHolder.inst = _threadlocal.Hub()
 
 
 class HubHolder:
@@ -111,6 +110,7 @@ class HubHolder:
     def __init__(cls):
         if cls.inst is None:
             use_hub()
+            cls.inst = _threadlocal.Hub()
     #
 
     @classmethod
@@ -119,7 +119,7 @@ class HubHolder:
                     .. note :: |internal|
                     """
         if cls.inst is None:
-            use_hub()
+            cls.__init__()
         return cls.inst
     #
 
