@@ -109,7 +109,8 @@ class HubHolder:
 
     @classmethod
     def __init__(cls):
-        use_hub()
+        if cls.inst is None:
+            use_hub()
     #
 
     @classmethod
@@ -123,7 +124,7 @@ class HubHolder:
         return cls.inst
     #
 
-active_hub = HubHolder
+active_hub = HubHolder()
 get_hub = HubHolder.get_hub  # intermediate ref
 
 
