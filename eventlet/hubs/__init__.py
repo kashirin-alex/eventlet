@@ -35,20 +35,20 @@ def get_default_hub():
     #    pass
 
     try:
-        import eventlet.hubs.epolls
-        return eventlet.hubs.epolls
+        from eventlet.hubs import epolls
+        return epolls
     except ImportError:
         try:
-            import eventlet.hubs.kqueue
-            return eventlet.hubs.kqueue
+            from eventlet.hubs import kqueue
+            return kqueue
         except ImportError:
             select = patcher.original('select')
             if hasattr(select, 'poll'):
-                import eventlet.hubs.poll
-                return eventlet.hubs.poll
+                from eventlet.hubs import poll
+                return poll
             else:
-                import eventlet.hubs.selects
-                return eventlet.hubs.selects
+                from eventlet.hubs import selects
+                return selects
 
 
 def use_hub(mod=None):
