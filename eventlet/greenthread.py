@@ -1,14 +1,15 @@
-from collections import deque
 import sys
+import warnings
+from collections import deque
 
+import six
+
+import eventlet
 from eventlet import event
 from eventlet import support
 from eventlet import timeout
 from eventlet.hubs import active_hub
-from eventlet.hubs import timer as ev_timer
 from eventlet.support import greenlets as greenlet
-import six
-import warnings
 
 __all__ = ['getcurrent', 'sleep', 'spawn', 'spawn_n',
            'kill',
@@ -140,7 +141,7 @@ def exc_after(seconds, *throw_args):
                   "Timeout(seconds, exception)",
                   DeprecationWarning, stacklevel=2)
     if seconds is None:  # dummy argument, do nothing
-        return ev_timer.Timer(seconds, lambda: None)
+        return eventlet.Timer(seconds, lambda: None)
     return active_hub.inst.schedule_call_local(seconds, getcurrent().throw, *throw_args)
 
 # deprecate, remove

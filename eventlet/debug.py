@@ -2,11 +2,11 @@
 debugging Eventlet-powered applications."""
 from __future__ import print_function
 
-import os
-import sys
-import linecache
-import re
 import inspect
+import linecache
+import os
+import re
+import sys
 
 __all__ = ['spew', 'unspew', 'format_hub_listeners', 'format_hub_timers',
            'hub_listener_stacks', 'hub_exceptions', 'tpool_exceptions',
@@ -114,7 +114,7 @@ def hub_timer_stacks(state=False):
     To inspect the stacks of the current timers, call :func:`format_hub_timers`
     at critical junctures in the application logic.
     """
-    from eventlet.hubs import timer
+    from eventlet import timer
     timer._g_debug = state
 
 

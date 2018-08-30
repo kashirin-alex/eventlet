@@ -16,6 +16,7 @@ if os.environ.get('EVENTLET_IMPORT_VERSION_ONLY') != '1':
     from eventlet import semaphore
     from eventlet import support
     from eventlet import timeout
+    from eventlet import timer
     import greenlet
     # Force monotonic library search as early as possible.
     # Helpful when CPython < 3.5 on Linux blocked in `os.waitpid(-1)` before first use of hub.
@@ -49,6 +50,9 @@ if os.environ.get('EVENTLET_IMPORT_VERSION_ONLY') != '1':
     Semaphore = semaphore.Semaphore
     CappedSemaphore = semaphore.CappedSemaphore
     BoundedSemaphore = semaphore.BoundedSemaphore
+
+    LocalTimer = timer.LocalTimer
+    Timer = timer.Timer
 
     Timeout = timeout.Timeout
     with_timeout = timeout.with_timeout

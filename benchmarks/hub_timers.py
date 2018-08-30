@@ -1,15 +1,14 @@
 #! /usr/bin/env python
 from __future__ import print_function
 
-# test timer adds & expires on hubs.hub.BaseHub
-
-import sys
-import eventlet
 import random
+import sys
 import time
 
-from eventlet.hubs import timer, get_hub
 import six
+
+from eventlet import timer
+from eventlet.hubs import get_hub
 
 
 timer_count = 100000

@@ -1,7 +1,7 @@
 from unittest import TestCase, main
 
 import eventlet
-from eventlet import hubs
+from eventlet import hubs, timer
 from eventlet.hubs import timer
 
 

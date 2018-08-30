@@ -1,15 +1,15 @@
 from __future__ import print_function
 
-from collections import deque
-from contextlib import contextmanager
 import sys
 import time
+from collections import deque
+from contextlib import contextmanager
 
-from eventlet.pools import Pool
-from eventlet import timeout
 from eventlet import hubs
-from eventlet.hubs.timer import Timer
+from eventlet import timeout
 from eventlet.greenthread import GreenThread
+from eventlet.pools import Pool
+from eventlet.timer import Timer
 
 
 _MISSING = object()
