@@ -101,7 +101,7 @@ def use_hub(mod=None):
         _threadlocal.Hub = mod.Hub
     else:
         _threadlocal.Hub = mod
-    active_hub.inst = _threadlocal.Hub()
+    HubHolder.inst = _threadlocal.Hub()
 
 
 class HubHolder:
@@ -113,7 +113,7 @@ class HubHolder:
     #
 
     @classmethod
-    def __call__(cls, *args, **kwargs):
+    def get_hub(cls, *args, **kwargs):
         """Get the current event hub singleton object.
 
                     .. note :: |internal|
@@ -123,8 +123,8 @@ class HubHolder:
         return cls.inst
     #
 
-active_hub = HubHolder()
-get_hub = active_hub  # intermediate ref
+active_hub = HubHolder
+get_hub = HubHolder.get_hub  # intermediate ref
 
 
 # Lame middle file import because complex dependencies in import graph
