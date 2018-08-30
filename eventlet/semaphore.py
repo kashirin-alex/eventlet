@@ -1,7 +1,7 @@
 import collections
 
 import eventlet
-from eventlet import hubs
+from eventlet.hubs import active_hub
 
 
 class Semaphore(object):
@@ -101,7 +101,7 @@ class Semaphore(object):
             if current_thread not in self._waiters:
                 self._waiters.append(current_thread)
             try:
-                switch = hubs.get_hub().switch
+                switch = active_hub.inst.switch
                 if timeout is not None:
                     ok = False
                     with eventlet.Timeout(timeout, False):
@@ -140,7 +140,7 @@ class Semaphore(object):
         """
         self.counter += 1
         if self._waiters:
-            hubs.get_hub().schedule_call_global(0, self._do_acquire)
+            active_hub.inst.schedule_call_global(0, self._do_acquire)
         return True
 
     def _do_acquire(self):

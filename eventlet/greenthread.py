@@ -2,9 +2,9 @@ from collections import deque
 import sys
 
 from eventlet import event
-from eventlet import hubs
 from eventlet import support
 from eventlet import timeout
+from eventlet.hubs import active_hub
 from eventlet.hubs import timer as ev_timer
 from eventlet.support import greenlets as greenlet
 import six
@@ -28,7 +28,7 @@ def sleep(seconds=0):
     calling any socket methods, it's a good idea to call ``sleep(0)``
     occasionally; otherwise nothing else will run.
     """
-    hub = hubs.get_hub()
+    hub = active_hub.inst
     current = getcurrent()
     assert hub.greenlet is not current, 'do not call blocking functions from the mainloop'
     timer = hub.schedule_call_global(seconds, current.switch)
@@ -48,7 +48,7 @@ def spawn(func, *args, **kwargs):
     Use :func:`spawn_after` to  arrange for greenthreads to be spawned
     after a finite delay.
     """
-    hub = hubs.get_hub()
+    hub = active_hub.inst
     g = GreenThread(hub.greenlet)
     hub.schedule_call_global(0, g.switch, func, args, kwargs)
     return g
@@ -84,7 +84,7 @@ def spawn_after(seconds, func, *args, **kwargs):
     generally the desired behavior.  If terminating *func* regardless of whether
     it's started or not is the desired behavior, call :meth:`GreenThread.kill`.
     """
-    hub = hubs.get_hub()
+    hub = active_hub.inst
     g = GreenThread(hub.greenlet)
     hub.schedule_call_global(seconds, g.switch, func, args, kwargs)
     return g
@@ -107,7 +107,7 @@ def spawn_after_local(seconds, func, *args, **kwargs):
     of whether it's started or not is the desired behavior, call
     :meth:`GreenThread.kill`.
     """
-    hub = hubs.get_hub()
+    hub = active_hub.inst
     g = GreenThread(hub.greenlet)
     hub.schedule_call_local(seconds, g.switch, func, args, kwargs)
     return g
@@ -127,7 +127,7 @@ def call_after_local(seconds, function, *args, **kwargs):
         "call_after_local is renamed to spawn_after_local, which"
         "has the same signature and semantics (plus a bit extra).",
         DeprecationWarning, stacklevel=2)
-    hub = hubs.get_hub()
+    hub = active_hub.inst
     g = greenlet.greenlet(function, parent=hub.greenlet)
     return hub.schedule_call_local(seconds, g.switch, *args, **kwargs)
 
@@ -141,7 +141,7 @@ def exc_after(seconds, *throw_args):
                   DeprecationWarning, stacklevel=2)
     if seconds is None:  # dummy argument, do nothing
         return ev_timer.Timer(seconds, lambda: None)
-    return hubs.get_hub().schedule_call_local(seconds, getcurrent().throw, *throw_args)
+    return active_hub.inst.schedule_call_local(seconds, getcurrent().throw, *throw_args)
 
 # deprecate, remove
 TimeoutError, with_timeout = (
@@ -152,7 +152,7 @@ TimeoutError, with_timeout = (
 
 
 def _spawn_n(seconds, func, args, kwargs):
-    hub = hubs.get_hub()
+    hub = active_hub.inst
     g = greenlet.greenlet(func, parent=hub.greenlet)
     return hub.schedule_call_global(seconds, g.switch, *args, **kwargs), g
 
@@ -272,7 +272,6 @@ def kill(g, *throw_args):
     """
     if g.dead:
         return
-    hub = hubs.get_hub()
     if not g:
         # greenlet hasn't started yet and therefore throw won't work
         # on its own; semantically we want it to be as though the main
@@ -291,8 +290,8 @@ def kill(g, *throw_args):
             except:
                 pass
     current = getcurrent()
-    if current is not hub.greenlet:
+    if current is not active_hub.inst.greenlet:
         # arrange to wake the caller back up immediately
-        hub.ensure_greenlet()
-        hub.schedule_call_global(0, current.switch)
+        active_hub.inst.ensure_greenlet()
+        active_hub.inst.schedule_call_global(0, current.switch)
     g.throw(*throw_args)

@@ -5,10 +5,33 @@ from eventlet.support import greenlets as greenlet
 import six
 
 
-__all__ = ["use_hub", "get_hub", "get_default_hub", "trampoline"]
+__all__ = ["active_hub", "use_hub", "get_hub", "get_default_hub", "trampoline"]
 
 threading = patcher.original('threading')
 _threadlocal = threading.local()
+
+
+class HubHolder:
+    inst = None  # active hub instance
+
+    @classmethod
+    def __init__(cls):
+        use_hub()
+    #
+
+    @classmethod
+    def __call__(cls, *args, **kwargs):
+        """Get the current event hub singleton object.
+
+                    .. note :: |internal|
+                    """
+        if cls.inst is None:
+            use_hub()
+        return cls.inst
+    #
+
+active_hub = HubHolder()
+get_hub = active_hub  # intermediate ref
 
 
 def get_default_hub():
@@ -101,22 +124,7 @@ def use_hub(mod=None):
         _threadlocal.Hub = mod.Hub
     else:
         _threadlocal.Hub = mod
-
-
-def get_hub():
-    """Get the current event hub singleton object.
-
-    .. note :: |internal|
-    """
-    try:
-        hub = _threadlocal.hub
-    except AttributeError:
-        try:
-            _threadlocal.Hub
-        except AttributeError:
-            use_hub()
-        hub = _threadlocal.hub = _threadlocal.Hub()
-    return hub
+    active_hub.inst = _threadlocal.Hub()
 
 
 # Lame middle file import because complex dependencies in import graph
@@ -141,7 +149,7 @@ def trampoline(fd, read=None, write=None, timeout=None,
     .. note :: |internal|
     """
     t = None
-    hub = get_hub()
+    hub = active_hub.inst
     current = greenlet.getcurrent()
     assert hub.greenlet is not current, 'do not call blocking functions from the mainloop'
     assert not (
@@ -176,7 +184,7 @@ def notify_close(fd):
     A particular file descriptor has been explicitly closed. Register for any
     waiting listeners to be notified on the next run loop.
     """
-    get_hub().notify_close(fd)
+    active_hub.inst.notify_close(fd)
 
 
 def notify_opened(fd):
@@ -188,7 +196,7 @@ def notify_opened(fd):
     We let the hub know that the old file descriptor is dead; any stuck listeners
     will be disabled and notified in turn.
     """
-    get_hub().mark_as_reopened(fd)
+    active_hub.inst.mark_as_reopened(fd)
 
 
 class IOClosed(IOError):

@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from eventlet import hubs
+from eventlet.hubs import active_hub
 from eventlet.support import greenlets as greenlet
 
 __all__ = ['Event']
@@ -119,9 +119,9 @@ class Event(object):
             self._waiters.add(current)
             timer = None
             if timeout is not None:
-                timer = hubs.get_hub().schedule_call_local(timeout, self._do_send, None, None, current)
+                timer = active_hub.inst.schedule_call_local(timeout, self._do_send, None, None, current)
             try:
-                result = hubs.get_hub().switch()
+                result = active_hub.inst.switch()
                 if timer is not None:
                     timer.cancel()
                 return result
@@ -163,9 +163,8 @@ class Event(object):
         if exc is not None and not isinstance(exc, tuple):
             exc = (exc, )
         self._exc = exc
-        hub = hubs.get_hub()
         for waiter in self._waiters:
-            hub.schedule_call_global(
+            active_hub.inst.schedule_call_global(
                 0, self._do_send, self._result, self._exc, waiter)
 
     def _do_send(self, result, exc, waiter):
