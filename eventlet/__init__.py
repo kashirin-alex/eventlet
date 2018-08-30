@@ -7,6 +7,9 @@ __version__ = '.'.join(map(str, version_info))
 # errors of greenlet so that the packager can still at least
 # access the version.  Also this makes easy_install a little quieter
 if os.environ.get('EVENTLET_IMPORT_VERSION_ONLY') != '1':
+    import greenlet
+    getcurrent = greenlet.greenlet.getcurrent
+
     from eventlet import convenience
     from eventlet import event
     from eventlet import greenpool
@@ -17,7 +20,6 @@ if os.environ.get('EVENTLET_IMPORT_VERSION_ONLY') != '1':
     from eventlet import support
     from eventlet import timeout
     from eventlet import timer
-    import greenlet
     # Force monotonic library search as early as possible.
     # Helpful when CPython < 3.5 on Linux blocked in `os.waitpid(-1)` before first use of hub.
     # Example: gunicorn
@@ -58,8 +60,6 @@ if os.environ.get('EVENTLET_IMPORT_VERSION_ONLY') != '1':
     with_timeout = timeout.with_timeout
     wrap_is_timeout = timeout.wrap_is_timeout
     is_timeout = timeout.is_timeout
-
-    getcurrent = greenlet.greenlet.getcurrent
 
     # deprecated
     TimeoutError, exc_after, call_after_global = (
