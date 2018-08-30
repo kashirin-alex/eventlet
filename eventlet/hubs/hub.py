@@ -21,7 +21,7 @@ else:
         arm_alarm = alarm_signal
 
 import eventlet
-from eventlet.hubs import timer, IOClosed
+from eventlet import hubs
 from eventlet.support import greenlets as greenlet, clear_sys_exc_info
 
 if os.environ.get('EVENTLET_CLOCK'):
@@ -40,7 +40,6 @@ g_prevent_multiple_readers = True
 
 READ = "read"
 WRITE = "write"
-
 
 def closed_callback(fileno):
     """ Used to de-fang a callback that may be triggered by a loop in BaseHub.wait
@@ -290,7 +289,7 @@ class BaseHub(object):
         listener = self.closed.pop()
         if not listener.greenlet.dead:
             # There's no point signalling a greenlet that's already dead.
-            listener.tb(IOClosed(errno.ENOTCONN, "Operation on closed file"))
+            listener.tb(hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
     def ensure_greenlet(self):
         if not self.greenlet.dead:
@@ -488,7 +487,7 @@ class BaseHub(object):
             *args: Arguments to pass to the callable when called.
             **kw: Keyword arguments to pass to the callable when called.
         """
-        tmr = timer.LocalTimer(seconds, cb, *args, **kw)
+        tmr = hubs.timer.LocalTimer(seconds, cb, *args, **kw)
         self.add_timer(tmr)
         return tmr
 
@@ -501,7 +500,7 @@ class BaseHub(object):
             *args: Arguments to pass to the callable when called.
             **kw: Keyword arguments to pass to the callable when called.
         """
-        tmr = timer.Timer(seconds, cb, *args, **kw)
+        tmr = hubs.timer.Timer(seconds, cb, *args, **kw)
         self.add_timer(tmr)
         return tmr
 
