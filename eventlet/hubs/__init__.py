@@ -114,9 +114,8 @@ class HubHolder:
     #
 
     @classmethod
-    def get_hub(cls, *args, **kwargs):
+    def get_hub(cls):
         """Get the current event hub singleton object.
-
                     .. note :: |internal|
                     """
         if cls.inst is None:
