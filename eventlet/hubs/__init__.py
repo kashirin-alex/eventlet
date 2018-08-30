@@ -11,29 +11,6 @@ threading = patcher.original('threading')
 _threadlocal = threading.local()
 
 
-class HubHolder:
-    inst = None  # active hub instance
-
-    @classmethod
-    def __init__(cls):
-        use_hub()
-    #
-
-    @classmethod
-    def __call__(cls, *args, **kwargs):
-        """Get the current event hub singleton object.
-
-                    .. note :: |internal|
-                    """
-        if cls.inst is None:
-            use_hub()
-        return cls.inst
-    #
-
-active_hub = HubHolder()
-get_hub = active_hub  # intermediate ref
-
-
 def get_default_hub():
     """Select the default hub implementation based on what multiplexing
     libraries are installed.  The order that the hubs are tried is:
@@ -125,6 +102,29 @@ def use_hub(mod=None):
     else:
         _threadlocal.Hub = mod
     active_hub.inst = _threadlocal.Hub()
+
+
+class HubHolder:
+    inst = None  # active hub instance
+
+    @classmethod
+    def __init__(cls):
+        use_hub()
+    #
+
+    @classmethod
+    def __call__(cls, *args, **kwargs):
+        """Get the current event hub singleton object.
+
+                    .. note :: |internal|
+                    """
+        if cls.inst is None:
+            use_hub()
+        return cls.inst
+    #
+
+active_hub = HubHolder()
+get_hub = active_hub  # intermediate ref
 
 
 # Lame middle file import because complex dependencies in import graph
