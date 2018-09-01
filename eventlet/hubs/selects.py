@@ -2,7 +2,7 @@ import errno
 import sys
 from eventlet import patcher
 from eventlet.support import get_errno, clear_sys_exc_info
-from eventlet.hubs.hub import BaseHub, noop
+from eventlet.hubs.hub import BaseHub, noop_r, noop_w
 
 select = patcher.original('select')
 ev_sleep = patcher.original('time').sleep
@@ -45,7 +45,7 @@ class Hub(BaseHub):
 
         for fileno in rs:
             try:
-                self.listeners_read.get(fileno, noop).cb(fileno)
+                self.listeners_read.get(fileno, noop_r).cb(fileno)
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
@@ -54,7 +54,7 @@ class Hub(BaseHub):
 
         for fileno in ws:
             try:
-                self.listeners_write.get(fileno, noop).cb(fileno)
+                self.listeners_write.get(fileno, noop_w).cb(fileno)
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
@@ -63,8 +63,8 @@ class Hub(BaseHub):
 
         for fileno in es:
             try:
-                self.listeners_read.get(fileno, noop).cb(fileno)
-                self.listeners_write.get(fileno, noop).cb(fileno)
+                self.listeners_read.get(fileno, noop_r).cb(fileno)
+                self.listeners_write.get(fileno, noop_w).cb(fileno)
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:

@@ -82,7 +82,9 @@ class FdListener(object):
         self.spent = True
 
 
-noop = FdListener(READ, 0, lambda x: None, lambda x: None, None)
+noop_r = FdListener(READ, 0, lambda x: None, lambda x: None, None)
+noop_w = FdListener(WRITE, 0, lambda x: None, lambda x: None, None)
+noop = noop_r
 
 
 # in debug mode, track the call site that created the listener
