@@ -404,7 +404,7 @@ class BaseHub(object):
                     # check for fds new signals
                     if readers or writers:
                         wait(0)
-                    push_timers = int(len(timers)/10)
+                    push_timers = (timers.__len__()/10).__int__()
                     # portion of the timers that should be called before checking for FD signals,
                     # divider can be configurable option
                 else:
@@ -538,7 +538,7 @@ class BaseHub(object):
         return self.listeners_write.values()
 
     def get_timers_count(self):
-        return len(self.timers)+len(self.next_timers)
+        return self.timers.__len__()+self.next_timers.__len__()
 
     def set_debug_listeners(self, value):
         self.lclass = DebugListener if value else FdListener
