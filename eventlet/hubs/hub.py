@@ -367,7 +367,6 @@ class BaseHub(object):
             wait = self.wait
             close_one = self.close_one
 
-            push_timers = 99
             delay = 0
 
             while not self.stopping:
@@ -401,10 +400,6 @@ class BaseHub(object):
                     continue
                 delay = (sleep_time+delay)/2  # negative
 
-                # check for fds new signals
-                if readers or writers:
-                    wait(0)
-
                 # remove current evaluated timer
                 heappop(timers)
 
@@ -421,6 +416,9 @@ class BaseHub(object):
                 if debug_blocking:
                     self.block_detect_post()
 
+                # check for fds new signals
+                if readers or writers:
+                    wait(0)
             else:
                 del self.timers[:]
         finally:
