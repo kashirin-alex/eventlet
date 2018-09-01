@@ -52,16 +52,16 @@ def get_default_hub(mod=None):
                 # a full path module name
                 if '.' in m or ':' in m:
                     modulename, _, classname = m.strip().partition(':')
-                    selected_mod = importlib.import_module(modulename+'.' + classname)
+                    selected_mod = importlib.import_module(modulename)
                     if selected_mod.is_available():
-                        if classname:
-                            selected_mod = getattr(selected_mod, classname)
+                        selected_mod = getattr(selected_mod, classname if classname else 'Hub')
                         break
                     selected_mod = None
 
                 # a built in module name
                 selected_mod = importlib.import_module('eventlet.hubs.' + m)
                 if selected_mod.is_available():
+                    selected_mod = getattr(mod, 'Hub')
                     break
                 selected_mod = None
             except:
@@ -98,8 +98,7 @@ class HubHolder:
         initialization,  because it resets the hub's state and any existing
         timers or listeners will never be resumed.
         """
-        mod = get_default_hub(mod)
-        _threadlocal.Hub = getattr(mod, 'Hub', mod)
+        _threadlocal.Hub = get_default_hub(mod)
         cls.inst = _threadlocal.Hub()
         #
 
