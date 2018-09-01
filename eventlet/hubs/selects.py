@@ -44,12 +44,18 @@ class Hub(BaseHub):
                 raise
 
         for fileno in er:
-            l = self.listeners_read.get(fileno)
-            if l:
-                l.cb(fileno)
-            l = self.listeners_write.get(fileno)
-            if l:
-                l.cb(fileno)
+            try:
+                l = self.listeners_read.get(fileno)
+                if l:
+                    l.cb(fileno)
+                l = self.listeners_write.get(fileno)
+                if l:
+                    l.cb(fileno)
+            except self.SYSTEM_EXCEPTIONS:
+                 raise
+            except:
+                self.squelch_exception(fileno, sys.exc_info())
+                clear_sys_exc_info()
 
         for listeners, events in ((self.listeners_read, r), (self.listeners_write, w)):
             for fileno in events:

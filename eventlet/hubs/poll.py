@@ -85,7 +85,9 @@ class Hub(BaseHub):
         # of callbacks in sync with the events we've just
         # polled for. It prevents one handler from invalidating
         # another.
-        callbacks = set()
+        if self.debug_blocking:
+            self.block_detect_pre()
+
         for fileno, event in presult:
             if event & select.POLLNVAL:
                 self.remove_descriptor(fileno)
@@ -93,30 +95,18 @@ class Hub(BaseHub):
             if event & READ_MASK:
                 l = self.listeners_read.get(fileno)
                 if l:
-                    callbacks.add((l.cb, fileno))
+                    l.cb(fileno)
             if event & WRITE_MASK:
                 l = self.listeners_write.get(fileno)
                 if l:
-                    callbacks.add((l.cb, fileno))
+                    l.cb(fileno)
             if event & EXC_MASK:
                 l = self.listeners_read.get(fileno)
                 if l:
-                    callbacks.add((l.cb, fileno))
+                    l.cb(fileno)
                 l = self.listeners_write.get(fileno)
                 if l:
-                    callbacks.add((l.cb, fileno))
-
-        if self.debug_blocking:
-            self.block_detect_pre()
-
-        for cb, fileno in callbacks:
-            try:
-                cb(fileno)
-            except self.SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
+                    l.cb(fileno)
 
         if self.debug_blocking:
             self.block_detect_post()
