@@ -401,9 +401,15 @@ class BaseHub(object):
                 # delay = abs(sleep_time)
                 # delicate, a split above executes to early, Would current delay indicate on next timer?
 
-                # check for fds new signals
-                if readers or writers:
-                    wait(0)
+                if push_timers == 0:
+                    # check for fds new signals
+                    if readers or writers:
+                        wait(0)
+                    push_timers = int(len(timers)/20)
+                    # portion of the timers that should be called before checking for FD signals,
+                    # divider can be configurable option
+                else:
+                    push_timers -= 1
 
                 # remove current evaluated timer
                 heappop(timers)
