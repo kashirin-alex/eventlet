@@ -54,9 +54,9 @@ def get_default_hub(mod=None):
                         selected_mod = getattr(mod, classname)
                     break
                 selected_mod = __import__('eventlet.hubs.' + mod, globals(), locals(), ['Hub'])
-            except:
-                pass
-
+            except Exception as e:
+                print (e)
+            
     assert selected_mod is not None, "Need to specify a hub"
     return selected_mod
 
