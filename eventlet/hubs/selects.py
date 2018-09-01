@@ -26,10 +26,9 @@ class Hub(BaseHub):
                 if get_errno(e) in BAD_SOCK:
                     self.remove_descriptor(fd)
 
-    def wait(self, seconds=None):
+    def wait(self, seconds=0):
         if not self.listeners_read and not self.listeners_write:
-            if seconds is not None:
-                ev_sleep(seconds)
+            ev_sleep(seconds)
             return
 
         try:

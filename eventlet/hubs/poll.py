@@ -66,10 +66,7 @@ class Hub(BaseHub):
         # poll.poll expects integral milliseconds
         return self.poll.poll(int(seconds * 1000.0))
 
-    def wait(self, seconds=None):
-        if not self.listeners_read and not self.listeners_write:
-            if seconds is None:
-                return
+    def wait(self, seconds=0):
         try:
             presult = self.do_poll(seconds)
             if not presult:
