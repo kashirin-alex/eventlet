@@ -51,59 +51,6 @@ def get_default_hub():
                 return selects
 
 
-def use_hub(mod=None):
-    """Use the module *mod*, containing a class called Hub, as the
-    event hub. Usually not required; the default hub is usually fine.
-
-    Mod can be an actual module, a string, or None.  If *mod* is a module,
-    it uses it directly.   If *mod* is a string and contains either '.' or ':'
-    use_hub tries to import the hub using the 'package.subpackage.module:Class'
-    convention, otherwise use_hub looks for a matching setuptools entry point
-    in the 'eventlet.hubs' group to load or finally tries to import
-    `eventlet.hubs.mod` and use that as the hub module.  If *mod* is None,
-    use_hub uses the default hub.  Only call use_hub during application
-    initialization,  because it resets the hub's state and any existing
-    timers or listeners will never be resumed.
-    """
-    if mod is None:
-        mod = os.environ.get('EVENTLET_HUB', None)
-    if mod is None:
-        mod = get_default_hub()
-    if hasattr(_threadlocal, 'hub'):
-        del _threadlocal.hub
-    if isinstance(mod, six.string_types):
-        assert mod.strip(), "Need to specify a hub"
-        if '.' in mod or ':' in mod:
-            modulename, _, classname = mod.strip().partition(':')
-            mod = __import__(modulename, globals(), locals(), [classname])
-            if classname:
-                mod = getattr(mod, classname)
-        else:
-            found = False
-
-            # setuptools 5.4.1 test_import_patched_defaults fail
-            # https://github.com/eventlet/eventlet/issues/177
-            try:
-                # try and import pkg_resources ...
-                import pkg_resources
-            except ImportError:
-                # ... but do not depend on it
-                pkg_resources = None
-            if pkg_resources is not None:
-                for entry in pkg_resources.iter_entry_points(
-                        group='eventlet.hubs', name=mod):
-                    mod, found = entry.load(), True
-                    break
-            if not found:
-                mod = __import__(
-                    'eventlet.hubs.' + mod, globals(), locals(), ['Hub'])
-    if hasattr(mod, 'Hub'):
-        _threadlocal.Hub = mod.Hub
-    else:
-        _threadlocal.Hub = mod
-    active_hub.inst = _threadlocal.Hub()
-
-
 class HubHolder:
     inst = None  # active hub instance
 
@@ -111,7 +58,8 @@ class HubHolder:
     def __init__(cls):
         if cls.inst is None:
             use_hub()
-    #
+            cls.inst = _threadlocal.Hub()
+        #
 
     @classmethod
     def get_hub(cls):
@@ -121,10 +69,66 @@ class HubHolder:
         if cls.inst is None:
             cls.__init__()
         return cls.inst
-    #
+        #
+
+    @classmethod
+    def use_hub(cls, mod=None):
+        """Use the module *mod*, containing a class called Hub, as the
+        event hub. Usually not required; the default hub is usually fine.
+
+        Mod can be an actual module, a string, or None.  If *mod* is a module,
+        it uses it directly.   If *mod* is a string and contains either '.' or ':'
+        use_hub tries to import the hub using the 'package.subpackage.module:Class'
+        convention, otherwise use_hub looks for a matching setuptools entry point
+        in the 'eventlet.hubs' group to load or finally tries to import
+        `eventlet.hubs.mod` and use that as the hub module.  If *mod* is None,
+        use_hub uses the default hub.  Only call use_hub during application
+        initialization,  because it resets the hub's state and any existing
+        timers or listeners will never be resumed.
+        """
+        if mod is None:
+            mod = os.environ.get('EVENTLET_HUB', None)
+        if mod is None:
+            mod = get_default_hub()
+        if hasattr(_threadlocal, 'hub'):
+            del _threadlocal.hub
+        if isinstance(mod, six.string_types):
+            assert mod.strip(), "Need to specify a hub"
+            if '.' in mod or ':' in mod:
+                modulename, _, classname = mod.strip().partition(':')
+                mod = __import__(modulename, globals(), locals(), [classname])
+                if classname:
+                    mod = getattr(mod, classname)
+            else:
+                found = False
+
+                # setuptools 5.4.1 test_import_patched_defaults fail
+                # https://github.com/eventlet/eventlet/issues/177
+                try:
+                    # try and import pkg_resources ...
+                    import pkg_resources
+                except ImportError:
+                    # ... but do not depend on it
+                    pkg_resources = None
+                if pkg_resources is not None:
+                    for entry in pkg_resources.iter_entry_points(
+                            group='eventlet.hubs', name=mod):
+                        mod, found = entry.load(), True
+                        break
+                if not found:
+                    mod = __import__(
+                        'eventlet.hubs.' + mod, globals(), locals(), ['Hub'])
+        if hasattr(mod, 'Hub'):
+            _threadlocal.Hub = mod.Hub
+        else:
+            _threadlocal.Hub = mod
+
+        cls.inst = _threadlocal.Hub()
+        #
 
 active_hub = HubHolder()
 get_hub = HubHolder.get_hub  # intermediate ref
+use_hub = HubHolder.use_hub  # intermediate ref
 
 
 # Lame middle file import because complex dependencies in import graph
