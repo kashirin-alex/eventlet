@@ -48,15 +48,15 @@ def get_default_hub(mod=None):
                 continue
             try:
                 if '.' in m or ':' in m:
-                    modulename, _, classname = mod.strip().partition(':')
+                    modulename, _, classname = m.strip().partition(':')
                     selected_mod = __import__(modulename, globals(), locals(), [classname])
                     if classname:
-                        selected_mod = getattr(mod, classname)
+                        selected_mod = getattr(selected_mod, classname)
                     break
-                selected_mod = __import__('eventlet.hubs.' + mod, globals(), locals(), ['Hub'])
+                selected_mod = __import__('eventlet.hubs.' + m, globals(), locals(), ['Hub'])
             except Exception as e:
-                print (e)
-            
+                pass  # print (e)
+
     assert selected_mod is not None, "Need to specify a hub"
     return selected_mod
 
