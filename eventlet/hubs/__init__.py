@@ -61,7 +61,7 @@ def get_default_hub(mod=None):
                 # a built in module name
                 selected_mod = importlib.import_module('eventlet.hubs.' + m)
                 if selected_mod.is_available():
-                    selected_mod = getattr(mod, 'Hub')
+                    selected_mod = getattr(selected_mod, 'Hub')
                     break
                 selected_mod = None
             except:
