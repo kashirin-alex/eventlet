@@ -92,15 +92,16 @@ class GreenConnection(greenio.GreenSocket):
 
     send = write
 
-    def sendall(self, data):
+    def sendall(self, data):  # , flags=None to match signature
         """Send "all" data on the connection. This calls send() repeatedly until
         all data is sent. If an error occurs, it's impossible to tell how much data
         has been sent.
 
         No return value."""
-        tail = self.send(data)
-        while tail < len(data):
-            tail += self.send(data[tail:])
+        while data:
+            offset = self.send(data)
+            if offset > 0:
+                data = data[offset:]
 
     def shutdown(self):
         if self.act_non_blocking:
