@@ -382,9 +382,8 @@ class BaseHub(object):
                         heappush(timers, (tmr.scheduled_time, tmr))
 
                 if not timers:
-                    if readers or writers:
-                        # wait for fd signals
-                        wait(60)
+                    # wait for fd signals
+                    wait(60)
                     continue
 
                 # current evaluated timer
