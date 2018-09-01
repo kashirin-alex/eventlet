@@ -67,25 +67,25 @@ class Hub(BaseHub):
         return self.poll.poll(int(seconds * 1000.0))
 
     def wait(self, seconds=0):
+        callbacks = []
         try:
             presult = self.do_poll(seconds)
             if not presult:
-                return
+                return callbacks
         except (IOError, select.error) as e:
             if get_errno(e) == errno.EINTR:
-                return
+                return callbacks
             raise
         except self.SYSTEM_EXCEPTIONS:
             raise
         except:
-            return
+            return callbacks
 
         # Accumulate the listeners to call back to prior to
         # triggering any of them. This is to keep the set
         # of callbacks in sync with the events we've just
         # polled for. It prevents one handler from invalidating
         # another.
-        callbacks = set()
         for fileno, event in presult:
             if event & select.POLLNVAL:
                 self.remove_descriptor(fileno)
@@ -93,30 +93,16 @@ class Hub(BaseHub):
             if event & READ_MASK:
                 l = self.listeners_read.get(fileno)
                 if l:
-                    callbacks.add((l.cb, fileno))
+                    callbacks.append((l.cb, fileno))
             if event & WRITE_MASK:
                 l = self.listeners_write.get(fileno)
                 if l:
-                    callbacks.add((l.cb, fileno))
+                    callbacks.append((l.cb, fileno))
             if event & EXC_MASK:
                 l = self.listeners_read.get(fileno)
                 if l:
-                    callbacks.add((l.cb, fileno))
+                    callbacks.append((l.cb, fileno))
                 l = self.listeners_write.get(fileno)
                 if l:
-                    callbacks.add((l.cb, fileno))
-
-        if self.debug_blocking:
-            self.block_detect_pre()
-
-        for cb, fileno in callbacks:
-            try:
-                cb(fileno)
-            except self.SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
-
-        if self.debug_blocking:
-            self.block_detect_post()
+                    callbacks.append((l.cb, fileno))
+        return callbacks
