@@ -89,17 +89,22 @@ class Hub(BaseHub):
                 continue
             called = False
             try:
-                r = self.listeners_read.get(fileno)
-                if event & READ_MASK and r:
-                    r.cb(fileno)
-                    called = True
-                w = self.listeners_write.get(fileno)
-                if event & WRITE_MASK and w:
-                    w.cb(fileno)
-                    called = True
-                if not called and event & EXC_MASK:
+                if event & READ_MASK:
+                    r = self.listeners_read.get(fileno)
                     if r:
                         r.cb(fileno)
+                        called = True
+                if event & WRITE_MASK:
+                    w = self.listeners_write.get(fileno)
+                    if w:
+                        w.cb(fileno)
+                        called = True
+
+                if not called and event & EXC_MASK:
+                    r = self.listeners_read.get(fileno)
+                    if r:
+                        r.cb(fileno)
+                    w = self.listeners_write.get(fileno)
                     if w:
                         w.cb(fileno)
             except self.SYSTEM_EXCEPTIONS:
