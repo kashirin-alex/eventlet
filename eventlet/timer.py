@@ -51,8 +51,7 @@ class Timer(object):
         """Schedule this timer to run in the current runloop.
         """
         self.called = False
-        hubs.active_hub.inst.add_timer(self)
-        return self
+        return hubs.active_hub.inst.add_timer(self)
 
     def __call__(self, *args):
         if self.called:

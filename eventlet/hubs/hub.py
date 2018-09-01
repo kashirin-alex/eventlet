@@ -478,6 +478,7 @@ class BaseHub(object):
     def add_timer(self, tmr):
         tmr.scheduled_time = self.clock() + tmr.seconds
         self.next_timers.append(tmr)
+        return tmr
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
@@ -487,9 +488,7 @@ class BaseHub(object):
             *args: Arguments to pass to the callable when called.
             **kw: Keyword arguments to pass to the callable when called.
         """
-        tmr = eventlet.LocalTimer(seconds, cb, *args, **kw)
-        self.add_timer(tmr)
-        return tmr
+        return self.add_timer(eventlet.LocalTimer(seconds, cb, *args, **kw))
 
     def schedule_call_global(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
@@ -500,9 +499,7 @@ class BaseHub(object):
             *args: Arguments to pass to the callable when called.
             **kw: Keyword arguments to pass to the callable when called.
         """
-        tmr = eventlet.Timer(seconds, cb, *args, **kw)
-        self.add_timer(tmr)
-        return tmr
+        return self.add_timer(eventlet.Timer(seconds, cb, *args, **kw))
 
     # for debugging:
 
