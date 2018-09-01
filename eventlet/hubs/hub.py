@@ -434,32 +434,26 @@ class BaseHub(object):
 
     def listeners_events(self, rs, ws, es):
         for fileno in rs:
-            try:
-                self.listeners_read.get(fileno, noop_r).cb(fileno)
-            except SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
-
+            self._listener_callback(self.listeners_read.get(fileno, noop_r).cb, fileno)
         for fileno in ws:
-            try:
-                self.listeners_write.get(fileno, noop_w).cb(fileno)
-            except SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
+            self._listener_callback(self.listeners_write.get(fileno, noop_w).cb, fileno)
 
         for fileno in es:
-            try:
-                self.listeners_read.get(fileno, noop_r).cb(fileno)
-                self.listeners_write.get(fileno, noop_w).cb(fileno)
-            except SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
+            self._listener_callback(self.listeners_read.get(fileno, noop_r).cb, fileno)
+            self._listener_callback(self.listeners_write.get(fileno, noop_w).cb, fileno)
+
+    def _listener_callback(self, fileno, cb):
+        if self.debug_blocking:
+            self.block_detect_pre()
+        try:
+            cb(fileno)
+        except SYSTEM_EXCEPTIONS:
+            raise
+        except:
+            self.squelch_exception(fileno, sys.exc_info())
+            clear_sys_exc_info()
+        if self.debug_blocking:
+            self.block_detect_post()
 
     @staticmethod
     def fire_timers(when):
