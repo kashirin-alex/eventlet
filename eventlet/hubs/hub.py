@@ -401,6 +401,10 @@ class BaseHub(object):
                 # delay = abs(sleep_time)
                 # delicate, a split above executes to early, Would current delay indicate on next timer?
 
+                # check for fds new signals
+                if readers or writers:
+                    wait(0)
+
                 # remove current evaluated timer
                 heappop(timers)
 
@@ -416,10 +420,6 @@ class BaseHub(object):
                     clear_sys_exc_info()
                 if debug_blocking:
                     self.block_detect_post()
-
-                # check for new fd signals
-                if readers or writers:
-                    wait(0)
 
             else:
                 del self.timers[:]
