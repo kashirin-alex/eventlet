@@ -5,11 +5,10 @@ import time
 from collections import deque
 from contextlib import contextmanager
 
-from eventlet import hubs
-from eventlet import timeout
+import eventlet
+from eventlet.hubs import active_hub
 from eventlet.greenthread import GreenThread
 from eventlet.pools import Pool
-from eventlet.timer import Timer
 
 
 _MISSING = object()
@@ -102,8 +101,8 @@ class BaseConnectionPool(Pool):
 
         if next_delay > 0:
             # set up a continuous self-calling loop
-            self._expiration_timer = Timer(next_delay, GreenThread(hubs.get_hub().greenlet).switch,
-                                           self._schedule_expiration, [], {})
+            self._expiration_timer = eventlet.Timer(next_delay, GreenThread(active_hub.inst.greenlet).switch,
+                                                    self._schedule_expiration, [], {})
             self._expiration_timer.schedule()
 
     def _expire_old_connections(self, now):
@@ -277,7 +276,7 @@ class TpooledConnectionPool(BaseConnectionPool):
 
     @classmethod
     def connect(cls, db_module, connect_timeout, *args, **kw):
-        t = timeout.Timeout(connect_timeout, ConnectTimeout())
+        t = eventlet.Timeout(connect_timeout, ConnectTimeout())
         try:
             from eventlet import tpool
             conn = tpool.execute(db_module.connect, *args, **kw)
@@ -297,7 +296,7 @@ class RawConnectionPool(BaseConnectionPool):
 
     @classmethod
     def connect(cls, db_module, connect_timeout, *args, **kw):
-        t = timeout.Timeout(connect_timeout, ConnectTimeout())
+        t = eventlet.Timeout(connect_timeout, ConnectTimeout())
         try:
             return db_module.connect(*args, **kw)
         finally:

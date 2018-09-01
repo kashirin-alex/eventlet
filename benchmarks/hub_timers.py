@@ -1,45 +1,38 @@
-#! /usr/bin/env python
-from __future__ import print_function
-
+'''Benchmark timer adds & expires on hubs.hub.BaseHub
+'''
+import contextlib
 import random
-import sys
-import time
 
+import eventlet
+import benchmarks
+from eventlet.hubs import active_hub
 import six
 
-from eventlet import timer
-from eventlet.hubs import get_hub
-
-
-timer_count = 100000
-
-if len(sys.argv) >= 2:
-    timer_count = int(sys.argv[1])
 
 l = []
+hub = active_hub.inst
 
 
 def work(n):
     l.append(n)
 
-timeouts = [random.uniform(0, 10) for x in six.moves.range(timer_count)]
 
-hub = get_hub()
+@contextlib.contextmanager
+def setup(iters):
+    l[:] = []
+    timeouts = [random.uniform(0, 10) for x in six.moves.range(iters)]
+    yield timeouts
 
-start = time.time()
 
-scheduled = []
+@benchmarks.configure(manager=setup, scale_factor=3)
+def benchmark_hub_timers(timeouts):
+    scheduled = []
 
-for timeout in timeouts:
-    t = timer.Timer(timeout, work, timeout)
-    t.schedule()
+    for timeout in timeouts:
+        t = eventlet.Timer(timeout, work, timeout)
+        t.schedule()
+        scheduled.append(t)
 
-    scheduled.append(t)
-
-hub.prepare_timers()
-hub.fire_timers(time.time() + 11)
-hub.prepare_timers()
-
-end = time.time()
-
-print("Duration: %f" % (end - start,))
+    hub.prepare_timers()
+    hub.fire_timers(hub.clock() + 11)
+    hub.prepare_timers()
