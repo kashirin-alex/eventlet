@@ -57,8 +57,7 @@ class HubHolder:
     @classmethod
     def __init__(cls):
         if cls.inst is None:
-            use_hub()
-            cls.inst = _threadlocal.Hub()
+            cls.use_hub()
         #
 
     @classmethod
