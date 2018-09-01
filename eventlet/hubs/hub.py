@@ -393,15 +393,6 @@ class BaseHub(object):
                     heappop(timers)
                     continue
 
-                if push_timers == 0:
-                    # check for new fd signals
-                    if readers or writers:
-                        wait(0)
-                    push_timers = int(len(timers)/10)
-                    # portion of the timers that should be called before checking for FD signals can be configurable
-                else:
-                    push_timers -= 1
-
                 sleep_time = exp - self.clock()
                 if sleep_time > 0:  # > delay
                     # wait for fd signals
@@ -425,6 +416,10 @@ class BaseHub(object):
                     clear_sys_exc_info()
                 if debug_blocking:
                     self.block_detect_post()
+
+                # check for new fd signals
+                if readers or writers:
+                    wait(0)
 
             else:
                 del self.timers[:]
