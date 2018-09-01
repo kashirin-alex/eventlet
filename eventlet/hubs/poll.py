@@ -92,21 +92,27 @@ class Hub(BaseHub):
             if event & select.POLLNVAL:
                 self.remove_descriptor(fileno)
                 continue
-            if event & READ_MASK:
-                l = self.listeners_read.get(fileno)
-                if l:
-                    l.cb(fileno)
-            if event & WRITE_MASK:
-                l = self.listeners_write.get(fileno)
-                if l:
-                    l.cb(fileno)
-            if event & EXC_MASK:
-                l = self.listeners_read.get(fileno)
-                if l:
-                    l.cb(fileno)
-                l = self.listeners_write.get(fileno)
-                if l:
-                    l.cb(fileno)
+            try:
+                if event & READ_MASK:
+                    l = self.listeners_read.get(fileno)
+                    if l:
+                        l.cb(fileno)
+                if event & WRITE_MASK:
+                    l = self.listeners_write.get(fileno)
+                    if l:
+                        l.cb(fileno)
+                if event & EXC_MASK:
+                    l = self.listeners_read.get(fileno)
+                    if l:
+                        l.cb(fileno)
+                    l = self.listeners_write.get(fileno)
+                    if l:
+                        l.cb(fileno)
+            except self.SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                self.squelch_exception(fileno, sys.exc_info())
+                clear_sys_exc_info()
 
         if self.debug_blocking:
             self.block_detect_post()
