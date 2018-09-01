@@ -86,7 +86,7 @@ class Hub(BaseHub):
             if event & select.POLLNVAL:
                 self.remove_descriptor(fileno)
                 continue
-            if event & WRITE_MASK:
+            if event & EXC_MASK:
                 es.append(fileno)
                 continue
             if event & READ_MASK:
