@@ -2,7 +2,7 @@ import errno
 import sys
 from eventlet import patcher
 from eventlet.support import get_errno, clear_sys_exc_info
-from eventlet.hubs.hub import BaseHub
+from eventlet.hubs.hub import BaseHub, noop
 
 select = patcher.original('select')
 ev_sleep = patcher.original('time').sleep
@@ -32,8 +32,8 @@ class Hub(BaseHub):
             return
 
         try:
-            r, w, er = select.select(self.listeners_read.keys(), self.listeners_write.keys(),
-                                     list(self.listeners_read) + list(self.listeners_write), seconds)
+            rs, ws, es = select.select(self.listeners_read.keys(), self.listeners_write.keys(),
+                                       list(self.listeners_read) + list(self.listeners_write), seconds)
         except select.error as e:
             if get_errno(e) == errno.EINTR:
                 return
@@ -43,28 +43,30 @@ class Hub(BaseHub):
             else:
                 raise
 
-        for fileno in er:
+        for fileno in rs:
             try:
-                l = self.listeners_read.get(fileno)
-                if l:
-                    l.cb(fileno)
-                l = self.listeners_write.get(fileno)
-                if l:
-                    l.cb(fileno)
+                self.listeners_read.get(fileno, noop).cb(fileno)
             except self.SYSTEM_EXCEPTIONS:
-                 raise
+                raise
             except:
                 self.squelch_exception(fileno, sys.exc_info())
                 clear_sys_exc_info()
 
-        for listeners, events in ((self.listeners_read, r), (self.listeners_write, w)):
-            for fileno in events:
-                try:
-                    l = listeners.get(fileno)
-                    if l:
-                        l.cb(fileno)
-                except self.SYSTEM_EXCEPTIONS:
-                    raise
-                except:
-                    self.squelch_exception(fileno, sys.exc_info())
-                    clear_sys_exc_info()
+        for fileno in ws:
+            try:
+                self.listeners_write.get(fileno, noop).cb(fileno)
+            except self.SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                self.squelch_exception(fileno, sys.exc_info())
+                clear_sys_exc_info()
+
+        for fileno in es:
+            try:
+                self.listeners_read.get(fileno, noop).cb(fileno)
+                self.listeners_write.get(fileno, noop).cb(fileno)
+            except self.SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                self.squelch_exception(fileno, sys.exc_info())
+                clear_sys_exc_info()

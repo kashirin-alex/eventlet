@@ -2,7 +2,7 @@ import errno
 import sys
 
 from eventlet import patcher
-from eventlet.hubs.hub import BaseHub
+from eventlet.hubs.hub import BaseHub, noop
 from eventlet.support import get_errno, clear_sys_exc_info
 
 select = patcher.original('select')
@@ -90,23 +90,14 @@ class Hub(BaseHub):
             called = False
             try:
                 if event & READ_MASK:
-                    r = self.listeners_read.get(fileno)
-                    if r:
-                        r.cb(fileno)
-                        called = True
+                    self.listeners_read.get(fileno, noop).cb(fileno)
+                    called = True
                 if event & WRITE_MASK:
-                    w = self.listeners_write.get(fileno)
-                    if w:
-                        w.cb(fileno)
-                        called = True
-
-                if called and event & EXC_MASK:
-                    r = self.listeners_read.get(fileno)
-                    if r:
-                        r.cb(fileno)
-                    w = self.listeners_write.get(fileno)
-                    if w:
-                        w.cb(fileno)
+                    self.listeners_write.get(fileno, noop).cb(fileno)
+                    called = True
+                if not called and event & EXC_MASK:
+                    self.listeners_read.get(fileno, noop).cb(fileno)
+                    self.listeners_write.get(fileno, noop).cb(fileno)
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
