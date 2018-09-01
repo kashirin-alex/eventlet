@@ -373,10 +373,10 @@ class BaseHub(object):
                     close_one()
 
                 while next_timers:
-                    tmr = next_timers.pop(-1)
-                    if not tmr.called:
+                    timer = next_timers.pop(-1)
+                    if not timer.called:
                         # apply new timers
-                        heappush(timers, (tmr.scheduled_time, tmr))
+                        heappush(timers, (timer.scheduled_time, timer))
 
                 if not timers:
                     # wait for fd signals
@@ -384,8 +384,8 @@ class BaseHub(object):
                     continue
 
                 # current evaluated timer
-                exp, tmr = timers[0]
-                if tmr.called:
+                exp, timer = timers[0]
+                if timer.called:
                     # remove called timer
                     heappop(timers)
                     continue
@@ -413,12 +413,12 @@ class BaseHub(object):
                 if debug_blocking:
                     self.block_detect_pre()
                 try:
-                    tmr()
+                    timer()
                 except SYSTEM_EXCEPTIONS:
                     raise
                 except:
                     if debug_exceptions:
-                        self.squelch_timer_exception(tmr, sys.exc_info())
+                        self.squelch_timer_exception(timer, sys.exc_info())
                     clear_sys_exc_info()
                 if debug_blocking:
                     self.block_detect_post()
@@ -465,16 +465,16 @@ class BaseHub(object):
             sys.stderr.flush()
             clear_sys_exc_info()
 
-    def squelch_timer_exception(self, tmr, exc_info):
+    def squelch_timer_exception(self, timer, exc_info):
         if self.debug_exceptions:
             traceback.print_exception(*exc_info)
             sys.stderr.flush()
             clear_sys_exc_info()
 
-    def add_timer(self, tmr):
-        tmr.scheduled_time = self.clock() + tmr.seconds
-        self.next_timers.append(tmr)
-        return tmr
+    def add_timer(self, timer):
+        timer.scheduled_time = self.clock() + timer.seconds
+        self.next_timers.append(timer)
+        return timer
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
         """Schedule a callable to be called after 'seconds' seconds have
