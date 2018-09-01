@@ -54,8 +54,8 @@ def get_default_hub(mod=None):
                         selected_mod = getattr(selected_mod, classname)
                     break
                 selected_mod = __import__('eventlet.hubs.' + m, globals(), locals(), ['Hub'])
-            except Exception as e:
-                pass  # print (e)
+            except:
+                pass
 
     assert selected_mod is not None, "Need to specify a hub"
     return selected_mod
@@ -149,6 +149,25 @@ def trampoline(fd, read=None, write=None, timeout=None,
         if t is not None:
             t.cancel()
 
+
+def notify_close(fd):
+    """
+    A particular file descriptor has been explicitly closed. Register for any
+    waiting listeners to be notified on the next run loop.
+    """
+    active_hub.inst.notify_close(fd)
+
+
+def notify_opened(fd):
+    """
+    Some file descriptors may be closed 'silently' - that is, by the garbage
+    collector, by an external library, etc. When the OS returns a file descriptor
+    from an open call (or something similar), this may be the only indication we
+    have that the FD has been closed and then recycled.
+    We let the hub know that the old file descriptor is dead; any stuck listeners
+    will be disabled and notified in turn.
+    """
+    active_hub.inst.mark_as_reopened(fd)
 
 class IOClosed(IOError):
     pass
