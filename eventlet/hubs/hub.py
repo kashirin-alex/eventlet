@@ -368,6 +368,7 @@ class BaseHub(object):
             close_one = self.close_one
 
             push_timers = 99
+            delay = 0
 
             while not self.stopping:
 
@@ -394,18 +395,17 @@ class BaseHub(object):
                     continue
 
                 sleep_time = exp - self.clock()
-                if sleep_time > 0:  # > delay
+                if sleep_time > 0:
                     # wait for fd signals
-                    wait(sleep_time)
+                    wait(sleep_time+delay)
                     continue
-                # delay = abs(sleep_time)
-                # delicate, a split above executes to early, Would current delay indicate on next timer?
+                delay = (sleep_time+delay)/2  # negative
 
                 if push_timers == 0:
                     # check for fds new signals
                     if readers or writers:
                         wait(0)
-                    push_timers = int(len(timers)/20)
+                    push_timers = int(len(timers)/10)
                     # portion of the timers that should be called before checking for FD signals,
                     # divider can be configurable option
                 else:
