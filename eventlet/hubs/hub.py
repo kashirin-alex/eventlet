@@ -368,6 +368,7 @@ class BaseHub(object):
             close_one = self.close_one
 
             delay = 0
+            push_timers = 99
 
             while not self.stopping:
 
@@ -398,7 +399,17 @@ class BaseHub(object):
                     # wait for fd signals
                     wait(sleep_time+delay)
                     continue
-                delay = (sleep_time+delay)/2  # negative
+                delay = (sleep_time+delay)/2  # delay is negative value
+
+                if push_timers == 0:
+                    # check for fds new signals
+                    if readers or writers:
+                        wait(0)
+                    push_timers = int(len(timers)/10)
+                    # portion of the timers that should be called before checking for FD signals,
+                    # divider can be configurable option
+                else:
+                    push_timers -= 1
 
                 # remove current evaluated timer
                 heappop(timers)
@@ -416,9 +427,6 @@ class BaseHub(object):
                 if debug_blocking:
                     self.block_detect_post()
 
-                # check for fds new signals
-                if readers or writers:
-                    wait(0)
             else:
                 del self.timers[:]
         finally:
