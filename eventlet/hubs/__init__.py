@@ -45,7 +45,7 @@ def get_default_hub(mod=None):
     if mod is not None and not isinstance(mod, six.string_types):
         selected_mod = mod
     else:
-        for m in mod + builtin_hub_names:
+        for m in (mod,) + builtin_hub_names:
             if m is None:
                 continue
             try:
