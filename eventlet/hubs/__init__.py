@@ -9,9 +9,13 @@ __all__ = ["active_hub", "use_hub", "get_hub", "get_default_hub", "trampoline"]
 
 threading = patcher.original('threading')
 _threadlocal = threading.local()
+if hasattr(_threadlocal, 'hub'):
+    del _threadlocal.hub
+
+hub_priorities = [os.environ.get('EVENTLET_HUB', None), 'epolls', 'poll', 'selects']  # , 'pyevent'
 
 
-def get_default_hub():
+def get_default_hub(mod=None):
     """Select the default hub implementation based on what multiplexing
     libraries are installed.  The order that the hubs are tried is:
 
@@ -25,30 +29,36 @@ def get_default_hub():
 
     .. include:: ../doc/common.txt
     .. note :: |internal|
+
+
+        Mod can be an actual module, a string, or None.  If *mod* is a module,
+        it uses it directly.   If *mod* is a string and contains either '.' or ':'
+        use_hub tries to import the hub using the 'package.subpackage.module:Class'
+        convention, otherwise use_hub looks for a matching setuptools entry point
+        in the 'eventlet.hubs' group to load or finally tries to import
+        `eventlet.hubs.mod` and use that as the hub module.
+
     """
+    selected_mod = None
+    if mod is not None and not isinstance(mod, six.string_types):
+        selected_mod = mod
+    else:
+        for m in [mod] + hub_priorities:
+            if m is None:
+                continue
+            try:
+                if '.' in m or ':' in m:
+                    modulename, _, classname = mod.strip().partition(':')
+                    selected_mod = __import__(modulename, globals(), locals(), [classname])
+                    if classname:
+                        selected_mod = getattr(mod, classname)
+                    break
+                selected_mod = __import__('eventlet.hubs.' + mod, globals(), locals(), ['Hub'])
+            except:
+                pass
 
-    # pyevent hub disabled for now because it is not thread-safe
-    # try:
-    #    import eventlet.hubs.pyevent
-    #    return eventlet.hubs.pyevent
-    # except:
-    #    pass
-
-    try:
-        from eventlet.hubs import epolls
-        return epolls
-    except ImportError:
-        try:
-            from eventlet.hubs import kqueue
-            return kqueue
-        except ImportError:
-            select = patcher.original('select')
-            if hasattr(select, 'poll'):
-                from eventlet.hubs import poll
-                return poll
-            else:
-                from eventlet.hubs import selects
-                return selects
+    assert selected_mod is not None, "Need to specify a hub"
+    return selected_mod
 
 
 class HubHolder:
@@ -74,54 +84,12 @@ class HubHolder:
     def use_hub(cls, mod=None):
         """Use the module *mod*, containing a class called Hub, as the
         event hub. Usually not required; the default hub is usually fine.
-
-        Mod can be an actual module, a string, or None.  If *mod* is a module,
-        it uses it directly.   If *mod* is a string and contains either '.' or ':'
-        use_hub tries to import the hub using the 'package.subpackage.module:Class'
-        convention, otherwise use_hub looks for a matching setuptools entry point
-        in the 'eventlet.hubs' group to load or finally tries to import
-        `eventlet.hubs.mod` and use that as the hub module.  If *mod* is None,
-        use_hub uses the default hub.  Only call use_hub during application
+        If *mod* is None, use_hub uses the default hub.  Only call use_hub during application
         initialization,  because it resets the hub's state and any existing
         timers or listeners will never be resumed.
         """
-        if mod is None:
-            mod = os.environ.get('EVENTLET_HUB', None)
-        if mod is None:
-            mod = get_default_hub()
-        if hasattr(_threadlocal, 'hub'):
-            del _threadlocal.hub
-        if isinstance(mod, six.string_types):
-            assert mod.strip(), "Need to specify a hub"
-            if '.' in mod or ':' in mod:
-                modulename, _, classname = mod.strip().partition(':')
-                mod = __import__(modulename, globals(), locals(), [classname])
-                if classname:
-                    mod = getattr(mod, classname)
-            else:
-                found = False
-
-                # setuptools 5.4.1 test_import_patched_defaults fail
-                # https://github.com/eventlet/eventlet/issues/177
-                try:
-                    # try and import pkg_resources ...
-                    import pkg_resources
-                except ImportError:
-                    # ... but do not depend on it
-                    pkg_resources = None
-                if pkg_resources is not None:
-                    for entry in pkg_resources.iter_entry_points(
-                            group='eventlet.hubs', name=mod):
-                        mod, found = entry.load(), True
-                        break
-                if not found:
-                    mod = __import__(
-                        'eventlet.hubs.' + mod, globals(), locals(), ['Hub'])
-        if hasattr(mod, 'Hub'):
-            _threadlocal.Hub = mod.Hub
-        else:
-            _threadlocal.Hub = mod
-
+        mod = get_default_hub(mod)
+        _threadlocal.Hub = getattr(mod, 'Hub', mod)
         cls.inst = _threadlocal.Hub()
         #
 
@@ -180,26 +148,6 @@ def trampoline(fd, read=None, write=None, timeout=None,
     finally:
         if t is not None:
             t.cancel()
-
-
-def notify_close(fd):
-    """
-    A particular file descriptor has been explicitly closed. Register for any
-    waiting listeners to be notified on the next run loop.
-    """
-    active_hub.inst.notify_close(fd)
-
-
-def notify_opened(fd):
-    """
-    Some file descriptors may be closed 'silently' - that is, by the garbage
-    collector, by an external library, etc. When the OS returns a file descriptor
-    from an open call (or something similar), this may be the only indication we
-    have that the FD has been closed and then recycled.
-    We let the hub know that the old file descriptor is dead; any stuck listeners
-    will be disabled and notified in turn.
-    """
-    active_hub.inst.mark_as_reopened(fd)
 
 
 class IOClosed(IOError):
