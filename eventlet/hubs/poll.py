@@ -75,6 +75,8 @@ class Hub(BaseHub):
             if get_errno(e) == errno.EINTR:
                 return
             raise
+        except self.SYSTEM_EXCEPTIONS:
+            raise
         except:
             return
 
@@ -107,11 +109,10 @@ class Hub(BaseHub):
         if self.debug_blocking:
             self.block_detect_pre()
 
-        sys_exceptions = self.SYSTEM_EXCEPTIONS
         for cb, fileno in callbacks:
             try:
                 cb(fileno)
-            except sys_exceptions:
+            except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
                 self.squelch_exception(fileno, sys.exc_info())
