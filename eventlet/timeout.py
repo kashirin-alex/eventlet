@@ -65,7 +65,7 @@ class Timeout(BaseException):
         else:  # regular timeout with user-provided exception
             self.timer = active_hub.inst.schedule_call_global(
                 self.seconds, eventlet.getcurrent().throw, self.exception)
-        return self
+        # return self # timer instance must be already available from where a call has been made
 
     @property
     def pending(self):
