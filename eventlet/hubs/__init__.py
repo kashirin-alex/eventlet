@@ -54,6 +54,7 @@ def get_default_hub(mod=None):
                         selected_mod = getattr(selected_mod, classname)
                     break
                 selected_mod = __import__('eventlet.hubs.' + m, globals(), locals(), ['Hub'])
+                break
             except:
                 pass
 
@@ -168,6 +169,7 @@ def notify_opened(fd):
     will be disabled and notified in turn.
     """
     active_hub.inst.mark_as_reopened(fd)
+
 
 class IOClosed(IOError):
     pass
