@@ -437,12 +437,11 @@ class BaseHub(object):
             self._listener_callback(self.listeners_read.get(fileno, noop_r).cb, fileno)
         for fileno in ws:
             self._listener_callback(self.listeners_write.get(fileno, noop_w).cb, fileno)
-
         for fileno in es:
             self._listener_callback(self.listeners_read.get(fileno, noop_r).cb, fileno)
             self._listener_callback(self.listeners_write.get(fileno, noop_w).cb, fileno)
 
-    def _listener_callback(self, fileno, cb):
+    def _listener_callback(self, cb, fileno):
         if self.debug_blocking:
             self.block_detect_pre()
         try:
