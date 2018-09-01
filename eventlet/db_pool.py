@@ -112,7 +112,7 @@ class BaseConnectionPool(Pool):
 
         *now* is the current time, as returned by time.time().
         """
-        original_count = len(self.free_items)
+        original_count = self.free_items.__len__()
         expired = [
             conn
             for last_used, created_at, conn in self.free_items
@@ -127,7 +127,7 @@ class BaseConnectionPool(Pool):
 
         # adjust the current size counter to account for expired
         # connections
-        self.current_size -= original_count - len(self.free_items)
+        self.current_size -= original_count - self.free_items.__len__()
 
         for conn in expired:
             self._safe_close(conn, quiet=True)

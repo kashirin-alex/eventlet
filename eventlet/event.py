@@ -47,7 +47,7 @@ class Event(object):
 
     def __str__(self):
         params = (self.__class__.__name__, hex(id(self)),
-                  self._result, self._exc, len(self._waiters))
+                  self._result, self._exc, self._waiters.__len__())
         return '<%s at %s result=%r _exc=%r _waiters[%d]>' % params
 
     def reset(self):

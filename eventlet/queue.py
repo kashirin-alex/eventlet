@@ -183,16 +183,16 @@ class LightQueue(object):
         if getattr(self, 'queue', None):
             result += ' queue=%r' % self.queue
         if self.getters:
-            result += ' getters[%s]' % len(self.getters)
+            result += ' getters[%s]' % self.getters.__len__()
         if self.putters:
-            result += ' putters[%s]' % len(self.putters)
+            result += ' putters[%s]' % self.putters.__len__()
         if self._event_unlock is not None:
             result += ' unlocking'
         return result
 
     def qsize(self):
         """Return the size of the queue."""
-        return len(self.queue)
+        return self.queue.__len__()
 
     def resize(self, size):
         """Resizes the queue's maximum size.
@@ -207,12 +207,12 @@ class LightQueue(object):
     def putting(self):
         """Returns the number of greenthreads that are blocked waiting to put
         items into the queue."""
-        return len(self.putters)
+        return self.putters.__len__()
 
     def getting(self):
         """Returns the number of greenthreads that are blocked waiting on an
         empty queue."""
-        return len(self.getters)
+        return self.getters.__len__()
 
     def empty(self):
         """Return ``True`` if the queue is empty, ``False`` otherwise."""
