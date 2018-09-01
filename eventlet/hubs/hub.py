@@ -1,10 +1,9 @@
 import errno
 import heapq
-import math
-import signal
 import os
 import sys
 import traceback
+import signal
 
 arm_alarm = None
 if hasattr(signal, 'setitimer'):
@@ -16,6 +15,8 @@ else:
         import itimer
         arm_alarm = itimer.alarm
     except ImportError:
+        import math
+
         def alarm_signal(seconds):
             signal.alarm(math.ceil(seconds))
         arm_alarm = alarm_signal
@@ -430,6 +431,35 @@ class BaseHub(object):
         finally:
             self.running = False
             self.stopping = False
+
+    def listeners_events(self, rs, ws, es):
+        for fileno in rs:
+            try:
+                self.listeners_read.get(fileno, noop_r).cb(fileno)
+            except SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                self.squelch_exception(fileno, sys.exc_info())
+                clear_sys_exc_info()
+
+        for fileno in ws:
+            try:
+                self.listeners_write.get(fileno, noop_w).cb(fileno)
+            except SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                self.squelch_exception(fileno, sys.exc_info())
+                clear_sys_exc_info()
+
+        for fileno in es:
+            try:
+                self.listeners_read.get(fileno, noop_r).cb(fileno)
+                self.listeners_write.get(fileno, noop_w).cb(fileno)
+            except SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                self.squelch_exception(fileno, sys.exc_info())
+                clear_sys_exc_info()
 
     @staticmethod
     def fire_timers(when):

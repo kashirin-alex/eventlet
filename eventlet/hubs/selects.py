@@ -1,16 +1,15 @@
 import errno
-import sys
 from eventlet import patcher
-from eventlet.support import get_errno, clear_sys_exc_info
-from eventlet.hubs.hub import BaseHub, noop_r, noop_w
+from eventlet.support import get_errno
+from eventlet.hubs.hub import BaseHub, SYSTEM_EXCEPTIONS
 
 select = patcher.original('select')
 ev_sleep = patcher.original('time').sleep
 
 try:
-    BAD_SOCK = set((errno.EBADF, errno.WSAENOTSOCK))
+    BAD_SOCK = (errno.EBADF, errno.WSAENOTSOCK)
 except AttributeError:
-    BAD_SOCK = set((errno.EBADF,))
+    BAD_SOCK = (errno.EBADF,)
 
 
 class Hub(BaseHub):
@@ -34,39 +33,14 @@ class Hub(BaseHub):
         try:
             rs, ws, es = select.select(self.listeners_read.keys(), self.listeners_write.keys(),
                                        list(self.listeners_read) + list(self.listeners_write), seconds)
+            self.listeners_events(rs, ws, es)
         except select.error as e:
             if get_errno(e) == errno.EINTR:
                 return
             elif get_errno(e) in BAD_SOCK:
                 self._remove_bad_fds()
                 return
-            else:
-                raise
-
-        for fileno in rs:
-            try:
-                self.listeners_read.get(fileno, noop_r).cb(fileno)
-            except self.SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
-
-        for fileno in ws:
-            try:
-                self.listeners_write.get(fileno, noop_w).cb(fileno)
-            except self.SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
-
-        for fileno in es:
-            try:
-                self.listeners_read.get(fileno, noop_r).cb(fileno)
-                self.listeners_write.get(fileno, noop_w).cb(fileno)
-            except self.SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
+        except SYSTEM_EXCEPTIONS:
+            raise
+        except:
+            return

@@ -1,9 +1,8 @@
 import errno
-import sys
 
 from eventlet import patcher
-from eventlet.hubs.hub import BaseHub, noop_r, noop_w
-from eventlet.support import get_errno, clear_sys_exc_info
+from eventlet.hubs.hub import BaseHub, SYSTEM_EXCEPTIONS
+from eventlet.support import get_errno
 
 select = patcher.original('select')
 
@@ -75,34 +74,24 @@ class Hub(BaseHub):
             if get_errno(e) == errno.EINTR:
                 return
             raise
-        except self.SYSTEM_EXCEPTIONS:
+        except SYSTEM_EXCEPTIONS:
             raise
         except:
             return
 
-        if self.debug_blocking:
-            self.block_detect_pre()
-
+        es = []
+        rs = []
+        ws = []
         for fileno, event in presult:
             if event & select.POLLNVAL:
                 self.remove_descriptor(fileno)
                 continue
-            called = False
-            try:
-                if event & READ_MASK:
-                    self.listeners_read.get(fileno, noop_r).cb(fileno)
-                    called = True
-                if event & WRITE_MASK:
-                    self.listeners_write.get(fileno, noop_w).cb(fileno)
-                    called = True
-                if not called and event & EXC_MASK:
-                    self.listeners_read.get(fileno, noop_r).cb(fileno)
-                    self.listeners_write.get(fileno, noop_w).cb(fileno)
-            except self.SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
+            if event & WRITE_MASK:
+                es.append(fileno)
+                continue
+            if event & READ_MASK:
+                rs.append(fileno)
+            if event & WRITE_MASK:
+                ws.append(fileno)
+        self.listeners_events(rs, ws, es)
 
-        if self.debug_blocking:
-            self.block_detect_post()
