@@ -382,11 +382,10 @@ class BaseHub(object):
                         heappush(timers, (tmr.scheduled_time, tmr))
 
                 if not timers:
-                    # wait for fd signals
-                    wait(60)
+                    if readers or writers:
+                        # wait for fd signals
+                        wait(60)
                     continue
-                elif readers or writers:
-                    wait(0)
 
                 # current evaluated timer
                 exp, tmr = timers[0]
@@ -418,6 +417,10 @@ class BaseHub(object):
                     clear_sys_exc_info()
                 if debug_blocking:
                     self.block_detect_post()
+
+                # check for new fd signals
+                if readers or writers:
+                    wait(0)
 
             else:
                 del self.timers[:]
