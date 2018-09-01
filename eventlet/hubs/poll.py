@@ -80,11 +80,6 @@ class Hub(BaseHub):
         except:
             return
 
-        # Accumulate the listeners to call back to prior to
-        # triggering any of them. This is to keep the set
-        # of callbacks in sync with the events we've just
-        # polled for. It prevents one handler from invalidating
-        # another.
         if self.debug_blocking:
             self.block_detect_pre()
 
@@ -92,22 +87,21 @@ class Hub(BaseHub):
             if event & select.POLLNVAL:
                 self.remove_descriptor(fileno)
                 continue
+            called = False
             try:
-                if event & READ_MASK:
-                    l = self.listeners_read.get(fileno)
-                    if l:
-                        l.cb(fileno)
-                if event & WRITE_MASK:
-                    l = self.listeners_write.get(fileno)
-                    if l:
-                        l.cb(fileno)
-                if event & EXC_MASK:
-                    l = self.listeners_read.get(fileno)
-                    if l:
-                        l.cb(fileno)
-                    l = self.listeners_write.get(fileno)
-                    if l:
-                        l.cb(fileno)
+                r = self.listeners_read.get(fileno)
+                if event & READ_MASK and r:
+                    r.cb(fileno)
+                    called = True
+                w = self.listeners_write.get(fileno)
+                if event & WRITE_MASK and w:
+                    w.cb(fileno)
+                    called = True
+                if not called and event & EXC_MASK:
+                    if r:
+                        r.cb(fileno)
+                    if w:
+                        w.cb(fileno)
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:
