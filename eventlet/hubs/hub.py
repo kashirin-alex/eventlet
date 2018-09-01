@@ -397,7 +397,7 @@ class BaseHub(object):
                         # delay = abs(sleep_time)
                         # delicate, a split above executes to early, Would current delay indicate on next timer?
                         heappop(timers)        # remove current evaluated timer
-                        callbacks.append(tmr)
+                        callbacks.append((tmr, None))
 
                 if not callbacks:
                     # wait for fd signals
@@ -408,11 +408,14 @@ class BaseHub(object):
                     # check for fd signals
                     callbacks += wait(0)
 
-                for cb in callbacks:
+                for cb, fileno in callbacks:
                     if debug_blocking:
                         self.block_detect_pre()
                     try:
-                        cb()
+                        if fileno is None:
+                            cb()
+                        else:
+                            cb(fileno)
                     except SYSTEM_EXCEPTIONS:
                         raise
                     except:
