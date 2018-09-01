@@ -382,10 +382,11 @@ class BaseHub(object):
                         heappush(timers, (tmr.scheduled_time, tmr))
 
                 if not timers:
-                    if readers or writers:
-                        # wait for fd signals
-                        wait(60)
+                    # wait for fd signals
+                    wait(60)
                     continue
+                elif readers or writers:
+                    wait(0)
 
                 # current evaluated timer
                 exp, tmr = timers[0]
@@ -394,15 +395,6 @@ class BaseHub(object):
                     # remove called timer
                     heappop(timers)
                     continue
-
-                if push_timers == 0:
-                    # check for new fd signals
-                    if readers or writers:
-                        wait(0)
-                    push_timers = int(len(timers)/10)
-                    # portion of the timers that should be called before checking for FD signals can be configurable
-                else:
-                    push_timers -= 1
 
                 sleep_time = exp - self.clock()
                 if sleep_time > 0:  # > delay

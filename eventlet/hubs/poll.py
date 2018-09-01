@@ -78,9 +78,6 @@ class Hub(BaseHub):
         except:
             return
 
-        if self.debug_blocking:
-            self.block_detect_pre()
-
         # Accumulate the listeners to call back to prior to
         # triggering any of them. This is to keep the set
         # of callbacks in sync with the events we've just
@@ -106,6 +103,9 @@ class Hub(BaseHub):
                 l = self.listeners_write.get(fileno)
                 if l:
                     callbacks.add((l.cb, fileno))
+
+        if self.debug_blocking:
+            self.block_detect_pre()
 
         sys_exceptions = self.SYSTEM_EXCEPTIONS
         for cb, fileno in callbacks:
