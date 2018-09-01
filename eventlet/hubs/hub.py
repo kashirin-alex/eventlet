@@ -404,7 +404,7 @@ class BaseHub(object):
                     # check for fds new signals
                     if readers or writers:
                         wait(0)
-                    push_timers = (timers.__len__()/4).__int__()
+                    push_timers = (timers.__len__()/10).__int__()
                     # portion of the timers that should be called before checking for FD signals,
                     # divider can be configurable option
                 else:
