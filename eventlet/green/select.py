@@ -1,5 +1,5 @@
 import eventlet
-from eventlet.hubs import get_hub
+from eventlet.hubs import active_hub
 import six
 __select = eventlet.patcher.original('select')
 error = __select.error
@@ -34,27 +34,29 @@ def select(read_list, write_list, error_list, timeout=None):
             timeout = float(timeout)
         except ValueError:
             raise TypeError("Expected number for timeout")
-    hub = get_hub()
-    timers = []
+
+    hub = active_hub.inst
     current = eventlet.getcurrent()
     assert hub.greenlet is not current, 'do not call blocking functions from the mainloop'
-    ds = {}
-    for r in read_list:
-        ds[get_fileno(r)] = {'read': r}
-    for w in write_list:
-        ds.setdefault(get_fileno(w), {})['write'] = w
-    for e in error_list:
-        ds.setdefault(get_fileno(e), {})['error'] = e
 
+    ds_read = {get_fileno(l): l for l in read_list}
+    ds_write = {get_fileno(l): l for l in write_list}
+    # ds_error = {get_fileno(l): l for l in error_list}
+    # or assign
+    # for l in error_list:
+    #   if l.evtype == hub.READ:
+    #        ds_read[get_fileno(l)] = l
+    #    elif l.evtype == hub.WRITE:
+    #        ds_write[get_fileno(l)] = l
+
+    timers = []
     listeners = []
 
     def on_read(d):
-        original = ds[get_fileno(d)]['read']
-        current.switch(([original], [], []))
+        current.switch(([ds_read[get_fileno(d)]], [], []))
 
     def on_write(d):
-        original = ds[get_fileno(d)]['write']
-        current.switch(([], [original], []))
+        current.switch(([], [ds_write[get_fileno(d)]], []))
 
     def on_timeout2():
         current.switch(([], [], []))
@@ -70,12 +72,13 @@ def select(read_list, write_list, error_list, timeout=None):
 
     if timeout is not None:
         timers.append(hub.schedule_call_global(timeout, on_timeout))
+
+    for fileno in ds_read:
+        listeners.append(hub.add(hub.READ, fileno, on_read, current.throw, lambda: None))
+    for fileno in ds_write:
+        listeners.append(hub.add(hub.WRITE, fileno, on_write, current.throw, lambda: None))
+
     try:
-        for k, v in six.iteritems(ds):
-            if v.get('read'):
-                listeners.append(hub.add(hub.READ, k, on_read, current.throw, lambda: None))
-            if v.get('write'):
-                listeners.append(hub.add(hub.WRITE, k, on_write, current.throw, lambda: None))
         try:
             return hub.switch()
         finally:
