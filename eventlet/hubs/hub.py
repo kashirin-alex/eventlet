@@ -502,7 +502,7 @@ class BaseHub(object):
         return self.listeners_write.values()
 
     def get_timers_count(self):
-        return len(self.timers)
+        return len(self.timers)+len(self.next_timers)
 
     def set_debug_listeners(self, value):
         self.lclass = DebugListener if value else FdListener

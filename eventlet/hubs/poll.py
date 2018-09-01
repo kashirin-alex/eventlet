@@ -100,7 +100,7 @@ class Hub(BaseHub):
                         w.cb(fileno)
                         called = True
 
-                if not called and event & EXC_MASK:
+                if called and event & EXC_MASK:
                     r = self.listeners_read.get(fileno)
                     if r:
                         r.cb(fileno)
