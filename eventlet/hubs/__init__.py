@@ -1,4 +1,5 @@
 import os
+import importlib
 
 from eventlet import patcher
 from eventlet.support import greenlets as greenlet
@@ -12,7 +13,7 @@ _threadlocal = threading.local()
 if hasattr(_threadlocal, 'hub'):
     del _threadlocal.hub
 
-hub_priorities = [os.environ.get('EVENTLET_HUB', None), 'epolls', 'poll', 'selects']  # , 'pyevent'
+builtin_hub_names = ('epolls', 'kqueue', 'poll', 'selects')
 
 
 def get_default_hub(mod=None):
@@ -39,24 +40,28 @@ def get_default_hub(mod=None):
         `eventlet.hubs.mod` and use that as the hub module.
 
     """
+
     selected_mod = None
     if mod is not None and not isinstance(mod, six.string_types):
         selected_mod = mod
     else:
-        for m in [mod] + hub_priorities:
+        for m in mod + builtin_hub_names:
             if m is None:
                 continue
             try:
                 if '.' in m or ':' in m:
                     modulename, _, classname = m.strip().partition(':')
-                    selected_mod = __import__(modulename, globals(), locals(), [classname])
-                    if classname:
-                        selected_mod = getattr(selected_mod, classname)
+                    selected_mod = importlib.import_module(modulename+'.' + classname)
+                    if selected_mod.is_available():
+                        if classname:
+                            selected_mod = getattr(selected_mod, classname)
+                        break
+                selected_mod = importlib.import_module('eventlet.hubs.' + m)
+                if selected_mod.is_available():
                     break
-                selected_mod = __import__('eventlet.hubs.' + m, globals(), locals(), ['Hub'])
-                break
             except:
                 pass
+            selected_mod = None
 
     assert selected_mod is not None, "Need to specify a hub"
     return selected_mod

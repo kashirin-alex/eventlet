@@ -6,6 +6,10 @@ from eventlet.support import get_errno
 
 select = patcher.original('select')
 
+
+def is_available():
+    return hasattr(select, 'poll')
+
 EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT

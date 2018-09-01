@@ -12,6 +12,10 @@ except AttributeError:
     BAD_SOCK = (errno.EBADF,)
 
 
+def is_available():
+    return hasattr(select, 'select')
+
+
 class Hub(BaseHub):
 
     def _remove_bad_fds(self):

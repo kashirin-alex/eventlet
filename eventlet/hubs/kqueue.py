@@ -8,8 +8,8 @@ time = patcher.original('time')
 from eventlet.hubs.hub import BaseHub, READ, WRITE, noop
 
 
-if getattr(select, 'kqueue', None) is None:
-    raise ImportError('No kqueue implementation found in select module')
+def is_available():
+    return hasattr(select, 'kqueue')
 
 
 FILTERS = {READ: select.KQ_FILTER_READ,
