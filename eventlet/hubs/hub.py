@@ -334,13 +334,9 @@ class BaseHub(object):
     def wait(self, seconds=None):
         raise NotImplementedError("Implement this in a subclass")
 
-    def default_sleep(self):
+    @staticmethod
+    def default_sleep():
         return 60.0
-
-    def sleep_until(self):
-        if not self.timers:
-            return None
-        return self.timers[0][0]
 
     def run(self, *a, **kw):
         """Run the runloop until abort is called.
@@ -384,7 +380,7 @@ class BaseHub(object):
 
                 if not timers:
                     # wait for fd signals
-                    wait(60)
+                    wait(self.default_sleep())
                     continue
 
                 # current evaluated timer
