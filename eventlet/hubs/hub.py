@@ -367,7 +367,7 @@ class BaseHub(object):
             wait = self.wait
             close_one = self.close_one
 
-            callbacks = []
+            push_timers = 99
 
             while not self.stopping:
 
@@ -381,49 +381,50 @@ class BaseHub(object):
                         # apply new timers
                         heappush(timers, (tmr.scheduled_time, tmr))
 
-                if timers:
-                    # current evaluated timer
-                    exp, tmr = timers[0]
-                    if tmr.called:
-                        # remove called timer
-                        heappop(timers)
-                        continue
-
-                    sleep_time = exp - self.clock()
-                    if sleep_time > 0:  # > delay
-                        # wait for fd signals
-                        callbacks += wait(sleep_time)
-                    else:
-                        # delay = abs(sleep_time)
-                        # delicate, a split above executes to early, Would current delay indicate on next timer?
-                        heappop(timers)        # remove current evaluated timer
-                        callbacks.append((tmr, None))
-
-                if not callbacks:
+                if not timers:
                     # wait for fd signals
-                    callbacks += wait(60)
-                    if not callbacks:
-                        continue
-                elif readers or writers:
-                    # check for fd signals
-                    callbacks += wait(0)
+                    wait(60)
+                    continue
 
-                for cb, fileno in callbacks:
-                    if debug_blocking:
-                        self.block_detect_pre()
-                    try:
-                        if fileno is None:
-                            cb()
-                        else:
-                            cb(fileno)
-                    except SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        if debug_exceptions:
-                            self.squelch_timer_exception(cb, sys.exc_info())
-                        clear_sys_exc_info()
-                    if debug_blocking:
-                        self.block_detect_post()
+                # current evaluated timer
+                exp, tmr = timers[0]
+                if tmr.called:
+                    # remove called timer
+                    heappop(timers)
+                    continue
+
+                if push_timers == 0:
+                    # check for new fd signals
+                    if readers or writers:
+                        wait(0)
+                    push_timers = int(len(timers)/10)
+                    # portion of the timers that should be called before checking for FD signals can be configurable
+                else:
+                    push_timers -= 1
+
+                sleep_time = exp - self.clock()
+                if sleep_time > 0:  # > delay
+                    # wait for fd signals
+                    wait(sleep_time)
+                    continue
+                # delay = abs(sleep_time)
+                # delicate, a split above executes to early, Would current delay indicate on next timer?
+
+                # remove current evaluated timer
+                heappop(timers)
+
+                if debug_blocking:
+                    self.block_detect_pre()
+                try:
+                    tmr()
+                except SYSTEM_EXCEPTIONS:
+                    raise
+                except:
+                    if debug_exceptions:
+                        self.squelch_timer_exception(tmr, sys.exc_info())
+                    clear_sys_exc_info()
+                if debug_blocking:
+                    self.block_detect_post()
 
             else:
                 del self.timers[:]
