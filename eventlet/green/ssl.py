@@ -7,11 +7,11 @@ import errno
 import functools
 import sys
 
-from eventlet import greenio, hubs
+from eventlet import greenio
 from eventlet.greenio import (
     set_nonblocking, GreenSocket, CONNECT_ERR, CONNECT_SUCCESS,
 )
-from eventlet.hubs import trampoline, IOClosed
+from eventlet.hubs import trampoline, IOClosed, active_hub
 from eventlet.support import get_errno, PY33
 import six
 orig_socket = __import__('socket')
@@ -50,7 +50,6 @@ class GreenSSLSocket(_original_sslsocket):
             sock = GreenSocket(sock)
 
         self.act_non_blocking = sock.act_non_blocking
-
         if six.PY2:
             # On Python 2 SSLSocket constructor queries the timeout, it'd break without
             # this assignment
@@ -158,13 +157,12 @@ class GreenSSLSocket(_original_sslsocket):
                 raise ValueError(
                     "non-zero flags not allowed in calls to sendall() on %s" %
                     self.__class__)
-            data_to_send = data
-            while data_to_send:
-                count = self.send(data_to_send)
+            while data:
+                count = self.send(data)
                 if count == 0:
                     trampoline(self, write=True, timeout_exc=timeout_exc('timed out'))
                 else:
-                    data_to_send = data_to_send[count:]
+                    data = data[count:]
             return  # None for success
         else:
             while True:
@@ -213,10 +211,9 @@ class GreenSSLSocket(_original_sslsocket):
         else:
             while True:
                 try:
-                    args = [self, nbytes, flags]
                     if into:
-                        args.insert(1, buffer_)
-                    return plain_socket_function(*args)
+                        return plain_socket_function(self, buffer_, nbytes, flags)
+                    return plain_socket_function(self, nbytes, flags)
                 except orig_socket.error as e:
                     if self.act_non_blocking:
                         raise
@@ -272,7 +269,7 @@ class GreenSSLSocket(_original_sslsocket):
                         else:
                             raise
             else:
-                clock = hubs.get_hub().clock
+                clock = active_hub.inst.clock
                 end = clock() + self.gettimeout()
                 while True:
                     try:

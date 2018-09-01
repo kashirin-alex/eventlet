@@ -73,9 +73,9 @@ class GreenPipe(_fileobject):
         return len(self._rbuf.getvalue())
 
     def _clear_readahead_buf(self):
-        len = self._get_readahead_len()
-        if len > 0:
-            self.read(len)
+        sz = self._get_readahead_len()
+        if sz > 0:
+            self.read(sz)
 
     def tell(self):
         self.flush()
@@ -182,19 +182,15 @@ class _SocketDuckForFd(object):
                     trampoline(self, write=True)
 
     def sendall(self, data):
-        len_data = len(data)
         os_write = os.write
         fileno = self._fileno
-        try:
-            total_sent = os_write(fileno, data)
-        except OSError as e:
-            if get_errno(e) != errno.EAGAIN:
-                raise IOError(*e.args)
-            total_sent = 0
-        while total_sent < len_data:
-            self._trampoline(self, write=True)
+        while data:
             try:
-                total_sent += os_write(fileno, data[total_sent:])
+                offset = os_write(fileno, data)
+                if offset > 0:
+                    data = data[offset:]
+                    if data:
+                        self._trampoline(self, write=True)
             except OSError as e:
                 if get_errno(e) != errno. EAGAIN:
                     raise IOError(*e.args)

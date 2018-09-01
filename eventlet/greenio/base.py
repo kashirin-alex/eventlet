@@ -6,7 +6,7 @@ import time
 import warnings
 
 import eventlet
-from eventlet.hubs import trampoline, notify_opened, IOClosed
+from eventlet.hubs import trampoline, notify_opened, IOClosed, active_hub
 from eventlet.support import get_errno
 import six
 
@@ -250,13 +250,14 @@ class GreenSocket(object):
                     raise socket.error(errno.EBADFD)
                 socket_checkerr(fd)
         else:
-            end = time.time() + self.gettimeout()
+            clock = active_hub.inst.clock
+            end = clock() + self.gettimeout()
             while True:
                 if socket_connect(fd, address):
                     return
-                if time.time() >= end:
+                if clock() >= end:
                     raise _timeout_exc
-                timeout = end - time.time()
+                timeout = end - clock()
                 try:
                     self._trampoline(fd, write=True, timeout=timeout, timeout_exc=_timeout_exc)
                 except IOClosed:
@@ -329,7 +330,6 @@ class GreenSocket(object):
             timeout_exc=socket_timeout('timed out'))
 
     def _recv_loop(self, recv_meth, empty_val, *args):
-        fd = self.fd
         if self.act_non_blocking:
             return recv_meth(*args)
 
@@ -397,10 +397,10 @@ class GreenSocket(object):
         return self._send_loop(self.fd.sendto, data, *args)
 
     def sendall(self, data, flags=0):
-        tail = self.send(data, flags)
-        len_data = len(data)
-        while tail < len_data:
-            tail += self.send(data[tail:], flags)
+        while data:
+            tail = self.send(data, flags)
+            if tail > 0:
+                data = data[tail:]
 
     def setblocking(self, flag):
         if flag:
