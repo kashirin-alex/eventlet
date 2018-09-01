@@ -75,6 +75,8 @@ class Hub(BaseHub):
             if get_errno(e) == errno.EINTR:
                 return
             raise
+        except:
+            return
 
         if self.debug_blocking:
             self.block_detect_pre()
@@ -92,23 +94,23 @@ class Hub(BaseHub):
             if event & READ_MASK:
                 l = self.listeners_read.get(fileno)
                 if l:
-                    callbacks.add((l, fileno))
+                    callbacks.add((l.cb, fileno))
             if event & WRITE_MASK:
                 l = self.listeners_write.get(fileno)
                 if l:
-                    callbacks.add((l, fileno))
+                    callbacks.add((l.cb, fileno))
             if event & EXC_MASK:
                 l = self.listeners_read.get(fileno)
                 if l:
-                    callbacks.add((l, fileno))
+                    callbacks.add((l.cb, fileno))
                 l = self.listeners_write.get(fileno)
                 if l:
-                    callbacks.add((l, fileno))
+                    callbacks.add((l.cb, fileno))
 
         sys_exceptions = self.SYSTEM_EXCEPTIONS
-        for listener, fileno in callbacks:
+        for cb, fileno in callbacks:
             try:
-                listener.cb(fileno)
+                cb(fileno)
             except sys_exceptions:
                 raise
             except:
