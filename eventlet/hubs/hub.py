@@ -282,14 +282,15 @@ class BaseHub(object):
             try:
                 listener.cb(fileno)
             except Exception:
-                self.squelch_generic_exception(sys.exc_info())
+                if self.debug_exceptions:
+                    self.squelch_generic_exception(sys.exc_info())
 
-    def close_one(self):
+    @staticmethod
+    def close_one(listener):
         """ Triggered from the main run loop. If a listener's underlying FD was
             closed somehow, throw an exception back to the trampoline, which should
             be able to manage it appropriately.
         """
-        listener = self.closed.pop()
         if not listener.greenlet.dead:
             # There's no point signalling a greenlet that's already dead.
             listener.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
@@ -314,7 +315,8 @@ class BaseHub(object):
             try:
                 switch_out()
             except:
-                self.squelch_generic_exception(sys.exc_info())
+                if self.debug_exceptions:
+                    self.squelch_generic_exception(sys.exc_info())
         self.ensure_greenlet()
         try:
             if self.greenlet.parent is not cur:
@@ -373,7 +375,7 @@ class BaseHub(object):
 
                 while closed:
                     # We ditch all of these first.
-                    close_one()
+                    close_one(closed.pop(-1))
 
                 while next_timers:
                     timer = next_timers.pop(-1)
