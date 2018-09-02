@@ -84,18 +84,16 @@ class FdListener(object):
         self.spent = True
 
 
-class FdListeners(object):
+class FdListeners:
 
     def __init__(self, *ev_types):
-        self.__slots__ = set(ev_types)
         for ev_type in ev_types:
             setattr(self, ev_type, {})
 
     def __getitem__(self, ev_type):
-        return self.__getattribute__(ev_type)
+        return getattr(self, ev_type)
 
     def __setitem__(self, ev_type):
-        self.__slots__.add(ev_type)
         setattr(self, ev_type, {})
 
 noop_r = FdListener(READ, 0, lambda x: None, lambda x: None, None)
