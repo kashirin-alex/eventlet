@@ -161,10 +161,10 @@ class Event(object):
         """
         assert self._result is NOT_USED, 'Trying to re-send() an already-triggered event.'
         self._result = result
-        if exc is not None and not isinstance(exc, tuple):
-            exc = (exc, )
-            
-        self._exc = bool(exc)
+        if exc is not None:
+            if not isinstance(exc, tuple):
+                exc = (exc, )
+            self._exc = True
         for waiter in self._waiters:
             active_hub.inst.schedule_call_global(
                 0, self._do_send, self._result, exc, waiter)
