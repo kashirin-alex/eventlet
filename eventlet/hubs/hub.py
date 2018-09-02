@@ -84,6 +84,18 @@ class FdListener(object):
         self.spent = True
 
 
+class FdListeners:
+
+    def __init__(self, *ev_types):
+        for ev_type in ev_types:
+            setattr(self, ev_type, {})
+
+    def __getitem__(self, ev_type):
+        return getattr(self, ev_type)
+
+    def __setitem__(self, ev_type):
+        setattr(self, ev_type, {})
+
 noop_r = FdListener(READ, 0, lambda x: None, lambda x: None, None)
 noop_w = FdListener(WRITE, 0, lambda x: None, lambda x: None, None)
 noop = noop_r
@@ -128,7 +140,7 @@ class BaseHub(object):
     WRITE = WRITE
 
     def __init__(self, clock=None):
-        self.listeners = {READ: {}, WRITE: {}}
+        self.listeners = FdListeners(READ, WRITE)
         self.secondaries = {READ: {}, WRITE: {}}
         self.closed = []
         self.lclass = FdListener
@@ -415,13 +427,13 @@ class BaseHub(object):
         #
 
     def process_listeners_events(self):
-        cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
+        # cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
         ev_type, file_no = self.listeners_events.popleft()
         if ev_type is not None:
-            cb(self.listeners[ev_type].get(file_no))
+            self._listener_callback_debug(self.listeners[ev_type].get(file_no))
         else:
-            cb(self.listeners[self.READ].get(file_no))
-            cb(self.listeners[self.WRITE].get(file_no))
+            self._listener_callback_debug(self.listeners[self.READ].get(file_no))
+            self._listener_callback_debug(self.listeners[self.WRITE].get(file_no))
         #
 
     def _listener_callback(self, listener):
