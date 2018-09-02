@@ -85,10 +85,9 @@ class FdListener(object):
 
 
 class FdListeners(object):
-    __slots__ = []
 
     def __init__(self, *ev_types):
-        self.__slots__ += ev_types
+        self.__slots__ = set(ev_types)
         for ev_type in ev_types:
             setattr(self, ev_type, {})
 
@@ -96,7 +95,7 @@ class FdListeners(object):
         return self.__getattribute__(ev_type)
 
     def __setitem__(self, ev_type):
-        self.__slots__.append(ev_type)
+        self.__slots__.add(ev_type)
         setattr(self, ev_type, {})
 
 noop_r = FdListener(READ, 0, lambda x: None, lambda x: None, None)
