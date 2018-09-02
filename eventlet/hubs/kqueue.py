@@ -104,9 +104,9 @@ class Hub(BaseHub):
             evfilt = event.filter
             try:
                 if evfilt == FILTERS[READ]:
-                    readers.get(fileno, noop).cb(fileno)
+                    self.listeners_events.add((self.READ, fileno))
                 if evfilt == FILTERS[WRITE]:
-                    writers.get(fileno, noop).cb(fileno)
+                    self.listeners_events.add((self.WRITE, fileno))
             except SYSTEM_EXCEPTIONS:
                 raise
             except:
