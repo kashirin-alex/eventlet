@@ -350,7 +350,6 @@ class BaseHub(object):
             close_one = self.close_one
 
             delay = 0
-            push_timers = 99
 
             while not self.stopping:
 
@@ -368,8 +367,9 @@ class BaseHub(object):
                         heappush(timers, (timer.scheduled_time, timer))
 
                 if not timers:
-                    # wait for fd signals
-                    wait(self.default_sleep())
+                    if not listeners_events:
+                        # wait for fd signals
+                        wait(self.default_sleep())
                     continue
 
                 # current evaluated timer
@@ -386,15 +386,9 @@ class BaseHub(object):
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
 
-                if push_timers == 0:
-                    # check for fds new signals
-                    if readers or writers:
-                        wait(0)
-                    push_timers = (timers.__len__()/10).__int__()
-                    # portion of the timers that should be called before checking for FD signals,
-                    # divider can be configurable option
-                else:
-                    push_timers -= 1
+                # check for fds new signals
+                if not listeners_events and (readers or writers):
+                    wait(0)
 
                 # remove current evaluated timer
                 heappop(timers)
@@ -421,13 +415,12 @@ class BaseHub(object):
 
     def process_listeners_events(self):
         cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
-        while self.listeners_events:
-            ev_type, file_no = self.listeners_events.popleft()
-            if ev_type is not None:
-                cb(self.listeners[ev_type].get(file_no))
-            else:
-                cb(self.listeners[self.READ].get(file_no))
-                cb(self.listeners[self.WRITE].get(file_no))
+        ev_type, file_no = self.listeners_events.popleft()
+        if ev_type is not None:
+            cb(self.listeners[ev_type].get(file_no))
+        else:
+            cb(self.listeners[self.READ].get(file_no))
+            cb(self.listeners[self.WRITE].get(file_no))
         #
 
     def _listener_callback(self, listener):
