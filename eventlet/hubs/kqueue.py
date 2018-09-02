@@ -90,25 +90,16 @@ class Hub(BaseHub):
             pass
 
     def wait(self, seconds=None):
-        readers = self.listeners[READ]
-        writers = self.listeners[WRITE]
-
-        if not readers and not writers:
+        if not self.listeners[READ] and not self.listeners[WRITE]:
             if seconds:
                 time.sleep(seconds)
             return
+
         result = self._control([], self.MAX_EVENTS, seconds)
-        SYSTEM_EXCEPTIONS = self.SYSTEM_EXCEPTIONS
         for event in result:
             fileno = event.ident
             evfilt = event.filter
-            try:
-                if evfilt == FILTERS[READ]:
-                    self.listeners_events.append((self.READ, fileno))
-                if evfilt == FILTERS[WRITE]:
-                    self.listeners_events.append((self.WRITE, fileno))
-            except SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                support.clear_sys_exc_info()
+            if evfilt == FILTERS[READ]:
+                self.listeners_events.append((self.READ, fileno))
+            if evfilt == FILTERS[WRITE]:
+                self.listeners_events.append((self.WRITE, fileno))
