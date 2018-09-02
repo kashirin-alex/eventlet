@@ -84,19 +84,24 @@ class FdListener(object):
         self.spent = True
 
 
-class FdListeners:
+class FdListeners(object):
+    __slots__ = []
 
     def __init__(self, *ev_types):
+        self.__slots__ += ev_types
         for ev_type in ev_types:
             setattr(self, ev_type, {})
 
     def __getitem__(self, ev_type):
-        return getattr(self, ev_type)
+        return self.__getattribute__(ev_type)
 
     def __setitem__(self, ev_type):
+        self.__slots__.append(ev_type)
         setattr(self, ev_type, {})
 
-noop = FdListener(READ, 0, lambda x: None, lambda x: None, None)
+noop_r = FdListener(READ, 0, lambda x: None, lambda x: None, None)
+noop_w = FdListener(WRITE, 0, lambda x: None, lambda x: None, None)
+noop = noop_r
 
 
 # in debug mode, track the call site that created the listener
@@ -189,7 +194,7 @@ class BaseHub(object):
         close operations from accidentally shutting down the wrong OS thread.
         """
         listener = self.lclass(evtype, fileno, cb, tb, mark_as_closed)
-        bucket = getattr(self.listeners, evtype)
+        bucket = self.listeners[evtype]
         if fileno in bucket:
             if g_prevent_multiple_readers:
                 raise RuntimeError(
@@ -203,7 +208,7 @@ class BaseHub(object):
                     "THAT THREAD=%s" % (
                         evtype, fileno, evtype, cb, bucket[fileno]))
             # store off the second listener in another structure
-            getattr(self.secondaries, evtype).setdefault(fileno, []).append(listener)
+            self.secondaries[evtype].setdefault(fileno, []).append(listener)
         else:
             bucket[fileno] = listener
         return listener
@@ -216,7 +221,7 @@ class BaseHub(object):
 
         found = False
         for evtype in [WRITE, READ]:
-            bucket = getattr(self.secondaries, evtype)
+            bucket = self.secondaries[evtype]
             if fileno in bucket:
                 for listener in bucket.pop(fileno):
                     found = True
@@ -225,7 +230,7 @@ class BaseHub(object):
 
             # For the primary listeners, we actually need to call remove,
             # which may modify the underlying OS polling objects.
-            listener = getattr(self.listeners, evtype).get(fileno)
+            listener = self.listeners[evtype].get(fileno)
             if listener:
                 found = True
                 self.closed.append(listener)
@@ -247,15 +252,14 @@ class BaseHub(object):
 
         fileno = listener.fileno
         evtype = listener.evtype
-        secondaries = getattr(self.secondaries, evtype)
-        sec = secondaries.get(fileno)
+        sec = self.secondaries[evtype].get(fileno)
         if not sec:
-            getattr(self.listeners, evtype).pop(fileno, None)
+            self.listeners[evtype].pop(fileno, None)
             return
         # migrate a secondary listener to be the primary listener
-        getattr(self.listeners, evtype)[fileno] = sec.pop(0)
+        self.listeners[evtype][fileno] = sec.pop(0)
         if not sec:
-            del secondaries[fileno]
+            del self.secondaries[evtype][fileno]
 
     def mark_as_reopened(self, fileno):
         """ If a file descriptor is returned by the OS as the result of some
@@ -271,10 +275,10 @@ class BaseHub(object):
         only."""
         listeners = []
         for evtype in [WRITE, READ]:
-            l = getattr(self.listeners, evtype).get(fileno)
+            l = self.listeners[evtype].get(fileno)
             if l:
                 listeners.append(l)
-            listeners += getattr(self.secondaries, evtype).get(fileno, [])
+            listeners += self.secondaries[evtype].get(fileno, [])
 
         for listener in listeners:
             self._listener_callback(listener)
@@ -429,10 +433,10 @@ class BaseHub(object):
         # cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
         ev_type, file_no = self.listeners_events.popleft()
         if ev_type is not None:
-            self._listener_callback_debug(getattr(self.listeners, ev_type).get(file_no))
+            self._listener_callback_debug(self.listeners[ev_type].get(file_no))
         else:
-            self._listener_callback_debug(getattr(self.listeners, self.READ).get(file_no))
-            self._listener_callback_debug(getattr(self.listeners, self.WRITE).get(file_no))
+            self._listener_callback_debug(self.listeners[self.READ].get(file_no))
+            self._listener_callback_debug(self.listeners[self.WRITE].get(file_no))
         #
 
     def _listener_callback(self, listener):
