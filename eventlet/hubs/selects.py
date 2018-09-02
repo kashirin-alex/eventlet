@@ -37,9 +37,9 @@ class Hub(BaseHub):
         try:
             rs, ws, es = select.select(self.listeners_read.keys(), self.listeners_write.keys(),
                                        list(self.listeners_read) + list(self.listeners_write), seconds)
-            self.listeners_events(((ev_type, file_no)
-                                   for ev_type, events in ((self.READ, rs), (self.WRITE, ws), (None, es))
-                                   for file_no in events))
+            self.listeners_events.update(((ev_type, file_no)
+                                          for ev_type, events in ((self.READ, rs), (self.WRITE, ws), (None, es))
+                                          for file_no in events))
         except select.error as e:
             if get_errno(e) == errno.EINTR:
                 return

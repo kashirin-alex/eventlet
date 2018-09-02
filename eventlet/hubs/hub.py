@@ -133,6 +133,7 @@ class BaseHub(object):
         self.secondaries = {READ: {}, WRITE: {}}
         self.closed = []
         self.lclass = FdListener
+        self.listeners_events = set()
 
         self.clock = default_clock if clock is None else clock
         self.timers = []
@@ -358,7 +359,8 @@ class BaseHub(object):
             writers = self.listeners_write
             readers = self.listeners_read
             closed = self.closed
-
+            listeners_events = self.listeners_events
+            process_listeners_events = self.process_listeners_events
             timers = self.timers
             next_timers = self.next_timers
 
@@ -379,6 +381,9 @@ class BaseHub(object):
                     if not timer.called:
                         # apply new timers
                         heappush(timers, (timer.scheduled_time, timer))
+
+                if listeners_events:
+                    process_listeners_events()
 
                 if not timers:
                     # wait for fd signals
@@ -432,9 +437,10 @@ class BaseHub(object):
             self.stopping = False
         #
 
-    def listeners_events(self, listeners):
+    def process_listeners_events(self):
         cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
-        for ev_type, file_no in listeners:
+        while self.listeners_events:
+            ev_type, file_no = self.listeners_events.pop()
             if ev_type is not None:
                 cb(self.listeners[ev_type].get(file_no))
             else:
