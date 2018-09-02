@@ -142,7 +142,7 @@ class BaseHub(object):
         self.stopping = False
         self.running = False
 
-        self.debug_exceptions = True
+        self.debug_exceptions = False
         self.debug_blocking = False
         self.debug_blocking_resolution = 1
         self._old_signal_handler = None
