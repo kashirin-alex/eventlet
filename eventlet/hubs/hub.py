@@ -382,7 +382,8 @@ class BaseHub(object):
                 sleep_time = exp - self.clock()
                 if sleep_time > 0:
                     # wait for fd signals
-                    wait(sleep_time+delay)
+                    if not listeners_events:
+                        wait(sleep_time+delay)
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
 
