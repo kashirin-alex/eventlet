@@ -127,7 +127,7 @@ class BaseHub(object):
     WRITE = WRITE
 
     def __init__(self, clock=None):
-        self.listeners = {READ: (), WRITE: {}}
+        self.listeners = {READ: {}, WRITE: {}}
         self.secondaries = {READ: {}, WRITE: {}}
         self.closed = []
         self.lclass = FdListener
