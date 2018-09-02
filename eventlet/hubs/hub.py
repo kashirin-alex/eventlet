@@ -355,9 +355,6 @@ class BaseHub(object):
             self.running = True
             self.stopping = False
 
-            debug_blocking = self.debug_blocking
-            debug_exceptions = self.debug_exceptions
-
             writers = self.listeners_write
             readers = self.listeners_read
             closed = self.closed
@@ -415,17 +412,17 @@ class BaseHub(object):
                 # remove current evaluated timer
                 heappop(timers)
 
-                if debug_blocking:
+                if self.debug_blocking:
                     self.block_detect_pre()
                 try:
                     timer()
                 except SYSTEM_EXCEPTIONS:
                     raise
                 except:
-                    if debug_exceptions:
+                    if self.debug_exceptions:
                         self.squelch_timer_exception(timer, sys.exc_info())
                     clear_sys_exc_info()
-                if debug_blocking:
+                if self.debug_blocking:
                     self.block_detect_post()
 
             else:
