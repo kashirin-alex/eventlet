@@ -376,14 +376,14 @@ class BaseHub(object):
                     # We ditch all of these first.
                     close_one(closed.pop(-1))
 
+                if listeners_events:
+                    process_listeners_events()
+
                 while next_timers:
                     timer = next_timers.pop(-1)
                     if not timer.called:
                         # apply new timers
                         heappush(timers, (timer.scheduled_time, timer))
-
-                if listeners_events:
-                    process_listeners_events()
 
                 if not timers:
                     # wait for fd signals
