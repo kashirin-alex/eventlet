@@ -1,7 +1,7 @@
 import errno
 
 from eventlet import patcher
-from eventlet.hubs.hub import BaseHub, SYSTEM_EXCEPTIONS
+from eventlet.hubs.hub import BaseHub, SYSTEM_EXCEPTIONS, noop_r, noop_w
 from eventlet.support import get_errno
 
 select = patcher.original('select')
@@ -83,19 +83,19 @@ class Hub(BaseHub):
         except:
             return
 
-        es = []
-        rs = []
-        ws = []
+        cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
         for fileno, event in presult:
             if event & select.POLLNVAL:
                 self.remove_descriptor(fileno)
                 continue
             if event & EXC_MASK:
-                es.append(fileno)
+                cb(self.listeners_read.get(fileno, noop_r).cb, fileno)
+                cb(self.listeners_write.get(fileno, noop_w).cb, fileno)
                 continue
             if event & READ_MASK:
-                rs.append(fileno)
+                cb(self.listeners_read.get(fileno, noop_r).cb, fileno)
             if event & WRITE_MASK:
-                ws.append(fileno)
-        self.listeners_events(rs, ws, es)
+                cb(self.listeners_write.get(fileno, noop_w).cb, fileno)
+
+        # self.listeners_events(rs, ws, es)
 
