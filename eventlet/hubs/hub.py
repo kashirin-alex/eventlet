@@ -265,11 +265,7 @@ class BaseHub(object):
             listeners += self.secondaries[evtype].get(fileno, [])
 
         for listener in listeners:
-            try:
-                listener.cb(fileno)
-            except Exception:
-                if self.debug_exceptions:
-                    self.squelch_generic_exception(sys.exc_info())
+            self._listener_callback(listener)
 
     @staticmethod
     def close_one(listener):
@@ -431,7 +427,6 @@ class BaseHub(object):
             else:
                 cb(self.listeners[self.READ].get(file_no))
                 cb(self.listeners[self.WRITE].get(file_no))
-
         #
 
     def _listener_callback(self, listener):
