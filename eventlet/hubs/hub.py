@@ -435,24 +435,17 @@ class BaseHub(object):
     def listeners_events(self, rs, ws, es):
         cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
         for fileno in rs:
-            l = self.listeners_read.get(fileno)
-            if l is not None:
-                cb(l)
+            cb(self.listeners_read.get(fileno))
         for fileno in ws:
-            l = self.listeners_write.get(fileno)
-            if l is not None:
-                cb(l)
+            cb(self.listeners_write.get(fileno))
         for fileno in es:
-            l = self.listeners_read.get(fileno)
-            if l is not None:
-                cb(l)
-            l = self.listeners_write.get(fileno)
-            if l is not None:
-                cb(l)
-
+            cb(self.listeners_read.get(fileno))
+            cb(self.listeners_write.get(fileno))
         #
 
     def _listener_callback(self, listener):
+        if listener is None:
+            return
         try:
             listener.cb(listener.fileno)
         except SYSTEM_EXCEPTIONS:
