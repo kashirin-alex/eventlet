@@ -94,6 +94,6 @@ class Hub(BaseHub):
             if event & READ_MASK:
                 listeners.add((self.READ, fileno))
             if event & WRITE_MASK:
-                listeners.add((self.READ, fileno))
+                listeners.add((self.WRITE, fileno))
         self.listeners_events(listeners)
 
