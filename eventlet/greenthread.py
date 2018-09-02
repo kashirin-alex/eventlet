@@ -49,9 +49,8 @@ def spawn(func, *args, **kwargs):
     Use :func:`spawn_after` to  arrange for greenthreads to be spawned
     after a finite delay.
     """
-    hub = active_hub.inst
-    g = GreenThread(hub.greenlet)
-    hub.schedule_call_global(0, g.switch, func, args, kwargs)
+    g = GreenThread(active_hub.inst.greenlet)
+    active_hub.inst.schedule_call_global(0, g.switch, func, args, kwargs)
     return g
 
 
@@ -85,9 +84,8 @@ def spawn_after(seconds, func, *args, **kwargs):
     generally the desired behavior.  If terminating *func* regardless of whether
     it's started or not is the desired behavior, call :meth:`GreenThread.kill`.
     """
-    hub = active_hub.inst
-    g = GreenThread(hub.greenlet)
-    hub.schedule_call_global(seconds, g.switch, func, args, kwargs)
+    g = GreenThread(active_hub.inst.greenlet)
+    active_hub.inst.schedule_call_global(seconds, g.switch, func, args, kwargs)
     return g
 
 
@@ -108,9 +106,8 @@ def spawn_after_local(seconds, func, *args, **kwargs):
     of whether it's started or not is the desired behavior, call
     :meth:`GreenThread.kill`.
     """
-    hub = active_hub.inst
-    g = GreenThread(hub.greenlet)
-    hub.schedule_call_local(seconds, g.switch, func, args, kwargs)
+    g = GreenThread(active_hub.inst.greenlet)
+    active_hub.inst.schedule_call_local(seconds, g.switch, func, args, kwargs)
     return g
 
 
@@ -128,9 +125,9 @@ def call_after_local(seconds, function, *args, **kwargs):
         "call_after_local is renamed to spawn_after_local, which"
         "has the same signature and semantics (plus a bit extra).",
         DeprecationWarning, stacklevel=2)
-    hub = active_hub.inst
-    g = greenlet.greenlet(function, parent=hub.greenlet)
-    return hub.schedule_call_local(seconds, g.switch, *args, **kwargs)
+    return active_hub.inst.schedule_call_local(
+        seconds,
+        greenlet.greenlet(function, parent=active_hub.inst.greenlet).switch, *args, **kwargs)
 
 
 call_after = call_after_local
@@ -153,9 +150,8 @@ TimeoutError, with_timeout = (
 
 
 def _spawn_n(seconds, func, args, kwargs):
-    hub = active_hub.inst
-    g = greenlet.greenlet(func, parent=hub.greenlet)
-    return hub.schedule_call_global(seconds, g.switch, *args, **kwargs), g
+    g = greenlet.greenlet(func, parent=active_hub.inst.greenlet)
+    return active_hub.inst.schedule_call_global(seconds, g.switch, *args, **kwargs), g
 
 
 class GreenThread(greenlet.greenlet):
@@ -165,7 +161,7 @@ class GreenThread(greenlet.greenlet):
     """
 
     def __init__(self, parent):
-        greenlet.greenlet.__init__(self, self.main, parent)
+        super(GreenThread, self).__init__(self.main, parent)
         self._exit_event = event.Event()
         self._resolving_links = False
         self._exit_funcs = None
