@@ -4,6 +4,7 @@ import os
 import sys
 import traceback
 import signal
+from collections import deque
 
 arm_alarm = None
 if hasattr(signal, 'setitimer'):
@@ -131,7 +132,7 @@ class BaseHub(object):
         self.secondaries = {READ: {}, WRITE: {}}
         self.closed = []
         self.lclass = FdListener
-        self.listeners_events = set()
+        self.listeners_events = deque()
 
         self.clock = default_clock if clock is None else clock
         self.timers = []
@@ -421,7 +422,7 @@ class BaseHub(object):
     def process_listeners_events(self):
         cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
         while self.listeners_events:
-            ev_type, file_no = self.listeners_events.pop()
+            ev_type, file_no = self.listeners_events.popleft()
             if ev_type is not None:
                 cb(self.listeners[ev_type].get(file_no))
             else:

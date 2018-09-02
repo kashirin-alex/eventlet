@@ -38,7 +38,7 @@ class Hub(BaseHub):
 
         try:
             rs, ws, es = select.select(readers, writers, readers + writers, seconds)
-            self.listeners_events.update(((ev_type, file_no)
+            self.listeners_events.extend(((ev_type, file_no)
                                           for ev_type, events in ((self.READ, rs), (self.WRITE, ws), (None, es))
                                           for file_no in events))
         except select.error as e:
