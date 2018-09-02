@@ -163,7 +163,7 @@ class Event(object):
         self._result = result
         if exc is not None and not isinstance(exc, tuple):
             exc = (exc, )
-        self._exc = True
+        self._exc = bool(exc)
         for waiter in self._waiters:
             active_hub.inst.schedule_call_global(
                 0, self._do_send, self._result, exc, waiter)
