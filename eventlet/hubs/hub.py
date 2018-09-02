@@ -361,7 +361,7 @@ class BaseHub(object):
             readers = self.listeners[READ]
             closed = self.closed
             listeners_events = self.listeners_events
-            process_listeners_events = self.process_listeners_events
+            process_listener_events = self.process_listener_events
             timers = self.timers
             next_timers = self.next_timers
 
@@ -377,7 +377,7 @@ class BaseHub(object):
                     close_one(closed.pop(-1))
 
                 if listeners_events:
-                    process_listeners_events()
+                    process_listener_events()
 
                 while next_timers:
                     timer = next_timers.pop(-1)
@@ -402,7 +402,8 @@ class BaseHub(object):
                 if sleep_time > 0:
                     # wait for fd signals
                     if not listeners_events:
-                        wait(sleep_time+delay)
+                        sleep_time += delay
+                        wait(sleep_time if sleep_time > 0 else 0)
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
 
@@ -433,7 +434,7 @@ class BaseHub(object):
             self.stopping = False
         #
 
-    def process_listeners_events(self):
+    def process_listener_events(self):
         # cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
         ev_type, file_no = self.listeners_events.popleft()
         if ev_type is not None:
