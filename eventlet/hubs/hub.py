@@ -432,15 +432,15 @@ class BaseHub(object):
             self.stopping = False
         #
 
-    def listeners_events(self, rs, ws, es):
+    def listeners_events(self, listeners):
         cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
-        for fileno in rs:
-            cb(self.listeners_read.get(fileno))
-        for fileno in ws:
-            cb(self.listeners_write.get(fileno))
-        for fileno in es:
-            cb(self.listeners_read.get(fileno))
-            cb(self.listeners_write.get(fileno))
+        for ev_type, file_no in listeners:
+            if ev_type is not None:
+                cb(self.listeners[ev_type].get(file_no))
+            else:
+                cb(self.listeners[self.READ].get(file_no))
+                cb(self.listeners[self.WRITE].get(file_no))
+
         #
 
     def _listener_callback(self, listener):

@@ -83,19 +83,17 @@ class Hub(BaseHub):
         except:
             return
 
-        es = []
-        rs = []
-        ws = []
+        listeners = set()
         for fileno, event in presult:
             if event & select.POLLNVAL:
                 self.remove_descriptor(fileno)
                 continue
             if event & EXC_MASK:
-                es.append(fileno)
+                listeners.add((None, fileno))
                 continue
             if event & READ_MASK:
-                rs.append(fileno)
+                listeners.add((self.READ, fileno))
             if event & WRITE_MASK:
-                ws.append(fileno)
-        self.listeners_events(rs, ws, es)
+                listeners.add((self.READ, fileno))
+        self.listeners_events(listeners)
 
