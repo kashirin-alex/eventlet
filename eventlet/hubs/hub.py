@@ -431,19 +431,20 @@ class BaseHub(object):
         finally:
             self.running = False
             self.stopping = False
+        #
 
     def listeners_events(self, rs, ws, es):
+        cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
         for fileno in rs:
-            self._listener_callback(self.listeners_read.get(fileno, noop_r).cb, fileno)
+            cb(self.listeners_read.get(fileno, noop_r).cb, fileno)
         for fileno in ws:
-            self._listener_callback(self.listeners_write.get(fileno, noop_w).cb, fileno)
+            cb(self.listeners_write.get(fileno, noop_w).cb, fileno)
         for fileno in es:
-            self._listener_callback(self.listeners_read.get(fileno, noop_r).cb, fileno)
-            self._listener_callback(self.listeners_write.get(fileno, noop_w).cb, fileno)
+            cb(self.listeners_read.get(fileno, noop_r).cb, fileno)
+            cb(self.listeners_write.get(fileno, noop_w).cb, fileno)
+        #
 
     def _listener_callback(self, cb, fileno):
-        if self.debug_blocking:
-            self.block_detect_pre()
         try:
             cb(fileno)
         except SYSTEM_EXCEPTIONS:
@@ -451,8 +452,15 @@ class BaseHub(object):
         except:
             self.squelch_exception(fileno, sys.exc_info())
             clear_sys_exc_info()
+        #
+
+    def _listener_callback_debug(self, cb, fileno):
+        if self.debug_blocking:
+            self.block_detect_pre()
+        self._listener_callback(cb, fileno)
         if self.debug_blocking:
             self.block_detect_post()
+        #
 
     @staticmethod
     def fire_timers(when):
