@@ -435,28 +435,37 @@ class BaseHub(object):
     def listeners_events(self, rs, ws, es):
         cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
         for fileno in rs:
-            cb(self.listeners_read.get(fileno, noop_r).cb, fileno)
+            l = self.listeners_read.get(fileno)
+            if l is not None:
+                cb(l)
         for fileno in ws:
-            cb(self.listeners_write.get(fileno, noop_w).cb, fileno)
+            l = self.listeners_write.get(fileno)
+            if l is not None:
+                cb(l)
         for fileno in es:
-            cb(self.listeners_read.get(fileno, noop_r).cb, fileno)
-            cb(self.listeners_write.get(fileno, noop_w).cb, fileno)
+            l = self.listeners_read.get(fileno)
+            if l is not None:
+                cb(l)
+            l = self.listeners_write.get(fileno)
+            if l is not None:
+                cb(l)
+
         #
 
-    def _listener_callback(self, cb, fileno):
+    def _listener_callback(self, listener):
         try:
-            cb(fileno)
+            listener.cb(listener.fileno)
         except SYSTEM_EXCEPTIONS:
             raise
         except:
-            self.squelch_exception(fileno, sys.exc_info())
+            self.squelch_exception(listener.fileno, sys.exc_info())
             clear_sys_exc_info()
         #
 
-    def _listener_callback_debug(self, cb, fileno):
+    def _listener_callback_debug(self, listener):
         if self.debug_blocking:
             self.block_detect_pre()
-        self._listener_callback(cb, fileno)
+        self._listener_callback(listener)
         if self.debug_blocking:
             self.block_detect_post()
         #
