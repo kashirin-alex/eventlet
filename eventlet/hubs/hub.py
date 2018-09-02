@@ -127,9 +127,7 @@ class BaseHub(object):
     WRITE = WRITE
 
     def __init__(self, clock=None):
-        self.listeners_read = {}
-        self.listeners_write = {}
-        self.listeners = {READ: self.listeners_read, WRITE: self.listeners_write}
+        self.listeners = {READ: (), WRITE: {}}
         self.secondaries = {READ: {}, WRITE: {}}
         self.closed = []
         self.lclass = FdListener
@@ -204,8 +202,9 @@ class BaseHub(object):
             Any current listeners must be defanged, and notifications to
             their greenlets queued up to send.
         """
+
         found = False
-        for evtype in self.secondaries:
+        for evtype in [WRITE, READ]:
             bucket = self.secondaries[evtype]
             if fileno in bucket:
                 for listener in bucket.pop(fileno):
@@ -213,22 +212,14 @@ class BaseHub(object):
                     self.closed.append(listener)
                     listener.defang()
 
-        # For the primary listeners, we actually need to call remove,
-        # which may modify the underlying OS polling objects.
-
-        listener = self.listeners_read.get(fileno)
-        if listener:
-            found = True
-            self.closed.append(listener)
-            self.remove(listener)
-            listener.defang()
-        listener = self.listeners_write.get(fileno)
-        if listener:
-            found = True
-            self.closed.append(listener)
-            self.remove(listener)
-            listener.defang()
-
+            # For the primary listeners, we actually need to call remove,
+            # which may modify the underlying OS polling objects.
+            listener = self.listeners[evtype].get(fileno)
+            if listener:
+                found = True
+                self.closed.append(listener)
+                self.remove(listener)
+                listener.defang()
         return found
 
     def notify_close(self, fileno):
@@ -245,7 +236,7 @@ class BaseHub(object):
 
         fileno = listener.fileno
         evtype = listener.evtype
-        sec = self.secondaries[evtype].get(fileno, None)
+        sec = self.secondaries[evtype].get(fileno)
         if not sec:
             self.listeners[evtype].pop(fileno, None)
             return
@@ -267,17 +258,11 @@ class BaseHub(object):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
         listeners = []
-        l = self.listeners_write.get(fileno)
-        if l:
-            listeners.append(l)
-        l = self.listeners_read.get(fileno)
-        if l:
-            listeners.append(l)
-
-        if fileno in self.secondaries[READ]:
-            listeners += self.secondaries[READ][fileno]
-        if fileno in self.secondaries[WRITE]:
-            listeners += self.secondaries[WRITE][fileno]
+        for evtype in [WRITE, READ]:
+            l = self.listeners[evtype].get(fileno)
+            if l:
+                listeners.append(l)
+            listeners += self.secondaries[evtype].get(fileno, [])
 
         for listener in listeners:
             try:
@@ -356,8 +341,8 @@ class BaseHub(object):
             self.running = True
             self.stopping = False
 
-            writers = self.listeners_write
-            readers = self.listeners_read
+            writers = self.listeners[WRITE]
+            readers = self.listeners[READ]
             closed = self.closed
             listeners_events = self.listeners_events
             process_listeners_events = self.process_listeners_events
@@ -540,10 +525,10 @@ class BaseHub(object):
     # for debugging:
 
     def get_readers(self):
-        return self.listeners_read.values()
+        return self.listeners[READ].values()
 
     def get_writers(self):
-        return self.listeners_write.values()
+        return self.listeners[WRITE].values()
 
     def get_timers_count(self):
         return self.timers.__len__()+self.next_timers.__len__()

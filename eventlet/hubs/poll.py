@@ -31,9 +31,10 @@ class Hub(BaseHub):
 
     def register(self, fileno, new=False):
         mask = 0
-        if self.listeners_read.get(fileno):
+
+        if self.listeners[self.READ].get(fileno):
             mask |= READ_MASK | EXC_MASK
-        if self.listeners_write.get(fileno):
+        if self.listeners[self.WRITE].get(fileno):
             mask |= WRITE_MASK | EXC_MASK
         try:
             if mask:
