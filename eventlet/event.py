@@ -127,9 +127,6 @@ class Event(object):
                 return result
             finally:
                 self._waiters.discard(current)
-        # Needs to be a different way!
-        # if self._exc is not None:
-        #    current.throw(*self._exc)
         return self._result
 
     def send(self, result=None, exc=None):
