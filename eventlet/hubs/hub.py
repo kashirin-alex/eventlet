@@ -372,17 +372,18 @@ class BaseHub(object):
 
             while not self.stopping:
 
+                # Ditch all closed fds first.
                 while closed:
-                    # We ditch all of these first.
                     close_one(closed.pop(-1))
 
+                # Process one fd event at a time
                 if listeners_events:
-                    process_listener_events()
+                    process_listener_events(listeners_events.popleft())
 
+                # Assign new timers
                 while next_timers:
                     timer = next_timers.pop(-1)
                     if not timer.called:
-                        # apply new timers
                         heappush(timers, (timer.scheduled_time, timer))
 
                 if not timers:
@@ -394,25 +395,25 @@ class BaseHub(object):
                 # current evaluated timer
                 exp, timer = timers[0]
                 if timer.called:
-                    # remove called timer
+                    # remove called/cancelled timer
                     heappop(timers)
                     continue
 
                 sleep_time = exp - self.clock()
                 if sleep_time > 0:
-                    # wait for fd signals
                     if not listeners_events:
+                        # wait for fd signals
                         sleep_time += delay
                         wait(sleep_time if sleep_time > 0 else 0)
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
 
+                # remove current evaluated timer
+                heappop(timers)
+
                 # check for fds new signals
                 if not listeners_events and (readers or writers):
                     wait(0)
-
-                # remove current evaluated timer
-                heappop(timers)
 
                 if self.debug_blocking:
                     self.block_detect_pre()
@@ -434,32 +435,29 @@ class BaseHub(object):
             self.stopping = False
         #
 
-    def process_listener_events(self):
-        # cb = self._listener_callback_debug if self.debug_blocking else self._listener_callback
-        ev_type, file_no = self.listeners_events.popleft()
-        if ev_type is not None:
-            self._listener_callback_debug(self.listeners[ev_type].get(file_no))
-        else:
-            self._listener_callback_debug(self.listeners[self.READ].get(file_no))
-            self._listener_callback_debug(self.listeners[self.WRITE].get(file_no))
-        #
+    def process_listener_events(self, *args):
+        if self.debug_blocking:
+            self.block_detect_pre()
 
-    def _listener_callback(self, listener):
-        if listener is None:
-            return
+        ev_type, file_no = args
         try:
-            listener.cb(listener.fileno)
+            if ev_type is not None:
+                listener = self.listeners[ev_type].get(file_no)
+                if listener is not None:
+                    listener.cb(file_no)
+            else:
+                listener = self.listeners[self.READ].get(file_no)
+                if listener is not None:
+                    listener.cb(file_no)
+                listener = self.listeners[self.WRITE].get(file_no)
+                if listener is not None:
+                    listener.cb(file_no)
         except SYSTEM_EXCEPTIONS:
             raise
         except:
-            self.squelch_exception(listener.fileno, sys.exc_info())
+            self.squelch_exception(file_no, sys.exc_info())
             clear_sys_exc_info()
-        #
 
-    def _listener_callback_debug(self, listener):
-        if self.debug_blocking:
-            self.block_detect_pre()
-        self._listener_callback(listener)
         if self.debug_blocking:
             self.block_detect_post()
         #
