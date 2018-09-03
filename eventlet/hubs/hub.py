@@ -435,27 +435,27 @@ class BaseHub(object):
             self.stopping = False
         #
 
-    def process_listener_events(self, *args):
+    def process_listener_events(self, ev_fileno):
         if self.debug_blocking:
             self.block_detect_pre()
 
-        ev_type, file_no = args
+        ev, fno = ev_fileno
         try:
-            if ev_type is not None:
-                listener = self.listeners[ev_type].get(file_no)
+            if ev is not None:
+                listener = self.listeners[ev].get(fno)
                 if listener is not None:
-                    listener.cb(file_no)
+                    listener.cb(fno)
             else:
-                listener = self.listeners[self.READ].get(file_no)
+                listener = self.listeners[self.READ].get(fno)
                 if listener is not None:
-                    listener.cb(file_no)
-                listener = self.listeners[self.WRITE].get(file_no)
+                    listener.cb(fno)
+                listener = self.listeners[self.WRITE].get(fno)
                 if listener is not None:
-                    listener.cb(file_no)
+                    listener.cb(fno)
         except SYSTEM_EXCEPTIONS:
             raise
         except:
-            self.squelch_exception(file_no, sys.exc_info())
+            self.squelch_exception(fno, sys.exc_info())
             clear_sys_exc_info()
 
         if self.debug_blocking:
