@@ -111,11 +111,12 @@ class FdListeners:
     def __init__(self, *ev_types):
         self.read = {}
         self.write = {}
-
+        self.types_added = []
         for ev_type in ev_types:
-            setattr(self, ev_type, {})
-            if ev_type not in self.types:
+            if ev_type not in self.types and ev_type not in self.types_added:
                 self.types.append(ev_type)
+                self.types_added.append(ev_type)
+                setattr(self, ev_type, {})
         #
 
     def __getitem__(self, ev_type):
@@ -123,13 +124,19 @@ class FdListeners:
         #
 
     def __setitem__(self, ev_type):
-        if ev_type not in self.types:
-            self.types.append(ev_type)
+        if ev_type in self.types and ev_type in self.types_added:
+            return
+        self.types.append(ev_type)
+        self.types_added.append(ev_type)
         setattr(self, ev_type, {})
         #
 
     def has_fileno(self, fileno):
-        for ev_type in self.types:
+        # first check on builtins
+        if fileno in self.read or fileno in self.write:
+            return True
+
+        for ev_type in self.types_added:
             if fileno in getattr(self, ev_type):
                 return True
         return False
