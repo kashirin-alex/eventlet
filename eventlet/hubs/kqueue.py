@@ -67,7 +67,7 @@ class Hub(BaseHub):
         super(Hub, self).remove(listener)
         evtype = listener.evtype
         fileno = listener.fileno
-        if not self.listeners.__getattribute__(evtype).get(fileno):
+        if not getattr(self.listeners, evtype).get(fileno):
             event = self._events[fileno].pop(evtype, None)
             if event is None:
                 return
@@ -97,4 +97,4 @@ class Hub(BaseHub):
             evfilt = event.filter
             for typ in self.listeners.types:
                 if evfilt == self.FILTERS[typ]:
-                    self.listeners_events.append((self.listeners.__getattribute__(typ, None), event.ident))
+                    self.listeners_events.append((getattr(self.listeners, typ, None), event.ident))
