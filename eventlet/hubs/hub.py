@@ -109,25 +109,31 @@ class FdListeners:
     types = [READ, WRITE]
 
     def __init__(self, *ev_types):
-        self.ev_types = set(ev_types)
-        for ev_type in ev_types:
-            setattr(self, ev_type, {})
         self.read = {}
         self.write = {}
 
+        for ev_type in ev_types:
+            setattr(self, ev_type, {})
+            if ev_type not in self.types:
+                self.types.append(ev_type)
+        #
+
     def __getitem__(self, ev_type):
         return getattr(self, ev_type)
+        #
 
     def __setitem__(self, ev_type):
-        if ev_type not in self.ev_types:
-            self.ev_types.add(ev_type)
+        if ev_type not in self.types:
+            self.types.append(ev_type)
         setattr(self, ev_type, {})
+        #
 
     def has_fileno(self, fileno):
-        for ev_type in self.ev_types:
+        for ev_type in self.types:
             if fileno in getattr(self, ev_type):
                 return True
         return False
+        #
 
 noop = FdListener(FdListeners.READ, 0, lambda x: None, lambda x: None, None)
 
