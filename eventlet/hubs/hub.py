@@ -107,12 +107,11 @@ class FdListeners:
     READ = 'read'
     WRITE = 'write'
     types = [READ, WRITE]
+    types_added = []
 
     def __init__(self, *ev_types):
         self.read = {}
         self.write = {}
-
-        self.types_added = []
         for ev_type in ev_types:
             self.__setitem__(ev_type)
         #
