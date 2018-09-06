@@ -542,6 +542,9 @@ class BaseHub(object):
     def get_listeners_count(self):
         return self.listeners.read.__len__(),  self.listeners.write.__len__()
 
+    def get_listeners_events_count(self):
+        return self.listeners_events.__len__()
+
     def set_debug_listeners(self, value):
         self.lclass = DebugListener if value else FdListener
 
