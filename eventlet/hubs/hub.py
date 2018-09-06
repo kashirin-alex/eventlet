@@ -357,8 +357,8 @@ class BaseHub(object):
                     close_one(closed.pop(-1))
 
                 # Process one fd event at a time
-                # if listeners_events:
-                #    process_listener_events(*listeners_events.popleft())
+                if listeners_events:
+                    process_listener_events(*listeners_events.popleft())
 
                 # Assign new timers
                 while next_timers:
@@ -370,10 +370,6 @@ class BaseHub(object):
                     if not listeners_events:
                         # wait for fd signals
                         wait(self.default_sleep())
-                    else:
-                        # Process all fds events
-                        while listeners_events:
-                            process_listener_events(*listeners_events.popleft())
                     continue
 
                 # current evaluated timer
@@ -413,8 +409,8 @@ class BaseHub(object):
                     self.block_detect_post()
 
                 # check for fds new signals
-                # if not listeners_events and (readers or writers):
-                #    wait(0)
+                if not listeners_events and (readers or writers):
+                    wait(0)
             else:
                 del self.timers[:]
         finally:
