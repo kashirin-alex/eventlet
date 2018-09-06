@@ -240,7 +240,7 @@ class Socket(_Socket):
                 _Socket_getsockopt(self, EVENTS)
 
         hub = eventlet.hubs.get_hub()
-        self.__dict__['_eventlet_listener'] = hub.add(hub.READ,
+        self.__dict__['_eventlet_listener'] = hub.add(hub.FdListeners.READ,
                                                       self.getsockopt(FD),
                                                       event,
                                                       lambda _: None,
