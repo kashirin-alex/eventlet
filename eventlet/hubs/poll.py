@@ -32,9 +32,9 @@ class Hub(hub.BaseHub):
     def register(self, fileno, new=False):
         mask = 0
 
-        if self.listeners.read.get(fileno):
+        if self.listeners[self.READ].get(fileno):
             mask |= READ_MASK | EXC_MASK
-        if self.listeners.write.get(fileno):
+        if self.listeners[self.WRITE].get(fileno):
             mask |= WRITE_MASK | EXC_MASK
         try:
             if mask:
@@ -92,7 +92,7 @@ class Hub(hub.BaseHub):
                 self.listeners_events.append((None, fileno))
                 continue
             if event & READ_MASK:
-                self.listeners_events.append((hub.FdListeners.READ, fileno))
+                self.listeners_events.append((hub.READ, fileno))
             if event & WRITE_MASK:
-                self.listeners_events.append((hub.FdListeners.WRITE, fileno))
+                self.listeners_events.append((hub.WRITE, fileno))
 

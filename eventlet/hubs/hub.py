@@ -122,8 +122,6 @@ class FdListeners(object):
         return fileno in self.read or fileno in self.write
         #
 
-noop = FdListener(FdListeners.READ, 0, lambda x: None, lambda x: None, None)
-
 
 def alarm_handler(signum, frame):
     import inspect
@@ -131,17 +129,26 @@ def alarm_handler(signum, frame):
 
 SYSTEM_EXCEPTIONS = (KeyboardInterrupt, SystemExit)
 
+# EVENT TYPE INDEX FOR listeners TUPLE
+READ = 0
+WRITE = 1
+
+noop = FdListener(READ, 0, lambda x: None, lambda x: None, None)
+
 
 class BaseHub(object):
     """ Base hub class for easing the implementation of subclasses that are
     specific to a particular underlying event architecture. """
 
+    READ = READ
+    WRITE = WRITE
+    event_types = (READ, WRITE)
+
     SYSTEM_EXCEPTIONS = SYSTEM_EXCEPTIONS
-    FdListeners = FdListeners
 
     def __init__(self, clock=None):
-        self.listeners = FdListeners()
-        self.secondaries = FdListeners()
+        self.listeners = ({}, {})
+        self.secondaries = ({}, {})
         self.closed = []
         self.lclass = FdListener
         self.listeners_events = deque()
@@ -191,7 +198,7 @@ class BaseHub(object):
         close operations from accidentally shutting down the wrong OS thread.
         """
         listener = self.lclass(evtype, fileno, cb, tb, mark_as_closed)
-        bucket = getattr(self.listeners, evtype)
+        bucket = self.listeners[evtype]
         if fileno in bucket:
             if g_prevent_multiple_readers:
                 raise RuntimeError(
@@ -205,7 +212,7 @@ class BaseHub(object):
                     "THAT THREAD=%s" % (
                         evtype, fileno, evtype, cb, bucket[fileno]))
             # store off the second listener in another structure
-            getattr(self.secondaries, evtype).setdefault(fileno, []).append(listener)
+            self.secondaries[evtype].setdefault(fileno, []).append(listener)
         else:
             bucket[fileno] = listener
         return listener
@@ -217,8 +224,8 @@ class BaseHub(object):
         """
 
         found = False
-        for evtype in FdListeners.types:
-            bucket = getattr(self.secondaries, evtype)
+        for evtype in self.event_types:
+            bucket = self.secondaries[evtype]
             if fileno in bucket:
                 for listener in bucket.pop(fileno):
                     found = True
@@ -227,7 +234,7 @@ class BaseHub(object):
 
             # For the primary listeners, we actually need to call remove,
             # which may modify the underlying OS polling objects.
-            listener = getattr(self.listeners, evtype).get(fileno)
+            listener = self.listeners[evtype].get(fileno)
             if listener:
                 found = True
                 self.closed.append(listener)
@@ -249,14 +256,14 @@ class BaseHub(object):
 
         fileno = listener.fileno
         evtype = listener.evtype
-        sec = getattr(self.secondaries, evtype).get(fileno)
+        sec = self.secondaries[evtype].get(fileno)
         if not sec:
-            getattr(self.listeners, evtype).pop(fileno, None)
+            self.listeners[evtype].pop(fileno, None)
             return
         # migrate a secondary listener to be the primary listener
-        getattr(self.listeners, evtype)[fileno] = sec.pop(0)
+        self.listeners[evtype][fileno] = sec.pop(0)
         if not sec:
-            getattr(self.secondaries, evtype).pop(fileno)
+            self.secondaries[evtype].pop(fileno)
 
     def mark_as_reopened(self, fileno):
         """ If a file descriptor is returned by the OS as the result of some
@@ -271,11 +278,11 @@ class BaseHub(object):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
         listeners = []
-        for evtype in FdListeners.types:
-            l = getattr(self.listeners, evtype).get(fileno)
+        for evtype in self.event_types:
+            l = self.listeners[evtype].get(fileno)
             if l:
                 listeners.append(l)
-            listeners += getattr(self.secondaries, evtype).get(fileno, [])
+            listeners += self.secondaries[evtype].get(fileno, [])
 
         for listener in listeners:
             self.process_listener_events(listener.evtype, listener.fileno)
@@ -350,8 +357,8 @@ class BaseHub(object):
             self.running = True
             self.stopping = False
 
-            writers = self.listeners.read
-            readers = self.listeners.write
+            writers = self.listeners[self.READ]
+            readers = self.listeners[self.WRITE]
             closed = self.closed
             listeners_events = self.listeners_events
             process_listener_events = self.process_listener_events
@@ -433,14 +440,14 @@ class BaseHub(object):
 
         try:
             if evtype is not None:
-                l = getattr(self.listeners, evtype).get(fileno)
+                l = self.listeners[evtype].get(fileno)
                 if l is not None:
                     l.cb(fileno)
             else:
-                l = self.listeners.read.get(fileno)
+                l = self.listeners[READ].get(fileno)
                 if l is not None:
                     l.cb(fileno)
-                l = self.listeners.write.get(fileno)
+                l = self.listeners[WRITE].get(fileno)
                 if l is not None:
                     l.cb(fileno)
         except SYSTEM_EXCEPTIONS:
@@ -524,16 +531,16 @@ class BaseHub(object):
     # for debugging:
 
     def get_readers(self):
-        return self.listeners.read.values()
+        return self.listeners[READ].values()
 
     def get_writers(self):
-        return self.listeners.write.values()
+        return self.listeners[WRITE].values()
 
     def get_timers_count(self):
         return self.timers.__len__()+self.next_timers.__len__()
 
     def get_listeners_count(self):
-        return self.listeners.read.__len__(),  self.listeners.write.__len__()
+        return self.listeners[READ].__len__(),  self.listeners[WRITE].__len__()
 
     def get_listeners_events_count(self):
         return self.listeners_events.__len__()

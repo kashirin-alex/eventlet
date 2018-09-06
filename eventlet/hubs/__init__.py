@@ -145,9 +145,9 @@ def trampoline(fd, read=None, write=None, timeout=None,
         t = hub.schedule_call_global(timeout, _timeout, timeout_exc)
     try:
         if read:
-            listener = hub.add(hub.FdListeners.READ, fileno, current.switch, current.throw, mark_as_closed)
+            listener = hub.add(hub.READ, fileno, current.switch, current.throw, mark_as_closed)
         elif write:
-            listener = hub.add(hub.FdListeners.WRITE, fileno, current.switch, current.throw, mark_as_closed)
+            listener = hub.add(hub.WRITE, fileno, current.switch, current.throw, mark_as_closed)
         else:
             listener = None
         try:

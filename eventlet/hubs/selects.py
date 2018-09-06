@@ -22,7 +22,7 @@ class Hub(hub.BaseHub):
         """ Iterate through fds, removing the ones that are bad per the
         operating system.
         """
-        for fd in list(self.listeners.read) + list(self.listeners.write):
+        for fd in list(self.listeners[self.READ]) + list(self.listeners[self.WRITE]):
             try:
                 select.select([fd], [], [], 0)
             except select.error as e:
@@ -30,8 +30,8 @@ class Hub(hub.BaseHub):
                     self.remove_descriptor(fd)
 
     def wait(self, seconds=0):
-        readers = list(self.listeners.read)
-        writers = list(self.listeners.write)
+        readers = list(self.listeners[self.READ])
+        writers = list(self.listeners[self.WRITE])
         if not readers and not writers:
             ev_sleep(seconds)
             return
@@ -39,8 +39,7 @@ class Hub(hub.BaseHub):
         try:
             rs, ws, es = select.select(readers, writers, readers + writers, seconds)
             self.listeners_events.extend(((ev_type, file_no)
-                                          for ev_type, events in ((hub.FdListeners.READ, rs),
-                                                                  (hub.FdListeners.WRITE, ws), (None, es))
+                                          for ev_type, events in ((hub.READ, rs), (hub.WRITE, ws), (None, es))
                                           for file_no in events))
         except select.error as e:
             errn = support.get_errno(e)

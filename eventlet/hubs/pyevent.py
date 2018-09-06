@@ -117,9 +117,9 @@ class Hub(hub.BaseHub):
         else:
             cb = real_cb
 
-        if evtype is hub.FdListeners.READ:
+        if evtype is hub.READ:
             evt = event.read(fileno, cb, fileno)
-        elif evtype is hub.FdListeners.WRITE:
+        elif evtype is hub.WRITE:
             evt = event.write(fileno, cb, fileno)
         else:
             return
@@ -139,8 +139,8 @@ class Hub(hub.BaseHub):
         listener.cb.delete()
 
     def remove_descriptor(self, fileno):
-        for evtype in hub.FdListeners.types:
-            listener = getattr(self.listeners, evtype).pop(fileno, None)
+        for evtype in self.event_types:
+            listener = self.listeners[evtype].pop(fileno, None)
             if listener:
                 try:
                     listener.cb.delete()
