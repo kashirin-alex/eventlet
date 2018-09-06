@@ -103,26 +103,6 @@ class DebugListener(FdListener):
     __str__ = __repr__
 
 
-class FdListeners(object):
-    READ = 'read'
-    WRITE = 'write'
-    __slots__ = [READ, WRITE]
-    types = __slots__
-
-    def __init__(self):
-        self.read = {}
-        self.write = {}
-        #
-
-    def __getitem__(self, ev_type):
-        return getattr(self, ev_type)
-        #
-
-    def has_fileno(self, fileno):
-        return fileno in self.read or fileno in self.write
-        #
-
-
 def alarm_handler(signum, frame):
     import inspect
     raise RuntimeError("Blocking detector ALARMED at" + str(inspect.getframeinfo(frame)))
