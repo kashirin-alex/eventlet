@@ -1,8 +1,8 @@
 import errno
 
 from eventlet import patcher
-from eventlet.hubs.hub import BaseHub, SYSTEM_EXCEPTIONS
-from eventlet.support import get_errno
+from eventlet.hubs import hub
+from eventlet import support
 
 select = patcher.original('select')
 
@@ -15,7 +15,7 @@ READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT
 
 
-class Hub(BaseHub):
+class Hub(hub.BaseHub):
     def __init__(self, clock=None):
         super(Hub, self).__init__(clock)
         self.poll = select.poll()
@@ -32,9 +32,9 @@ class Hub(BaseHub):
     def register(self, fileno, new=False):
         mask = 0
 
-        if self.listeners[self.READ].get(fileno):
+        if self.listeners.read.get(fileno):
             mask |= READ_MASK | EXC_MASK
-        if self.listeners[self.WRITE].get(fileno):
+        if self.listeners.write.get(fileno):
             mask |= WRITE_MASK | EXC_MASK
         try:
             if mask:
@@ -76,10 +76,10 @@ class Hub(BaseHub):
             if not presult:
                 return
         except (IOError, select.error) as e:
-            if get_errno(e) == errno.EINTR:
+            if support.get_errno(e) == errno.EINTR:
                 return
             raise
-        except SYSTEM_EXCEPTIONS:
+        except self.SYSTEM_EXCEPTIONS:
             raise
         except:
             return
@@ -92,7 +92,7 @@ class Hub(BaseHub):
                 self.listeners_events.append((None, fileno))
                 continue
             if event & READ_MASK:
-                self.listeners_events.append((self.READ, fileno))
+                self.listeners_events.append((hub.FdListeners.READ, fileno))
             if event & WRITE_MASK:
-                self.listeners_events.append((self.WRITE, fileno))
+                self.listeners_events.append((hub.FdListeners.WRITE, fileno))
 

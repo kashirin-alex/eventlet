@@ -1,5 +1,5 @@
 import errno
-from eventlet.support import get_errno
+from eventlet import support
 from eventlet import patcher
 
 from eventlet.hubs.hub import BaseHub
@@ -27,7 +27,7 @@ class Hub(poll.Hub):
             # new=True, Means we've added a new listener
             self.register(fileno, new=new)
         except IOError as ex:    # ignore EEXIST, #80
-            if get_errno(ex) != errno.EEXIST:
+            if support.get_errno(ex) != errno.EEXIST:
                 raise
         return listener
 

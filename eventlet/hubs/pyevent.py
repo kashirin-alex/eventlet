@@ -4,7 +4,7 @@ import types
 
 from eventlet.support import greenlets as greenlet
 import six
-from eventlet.hubs.hub import BaseHub, READ, WRITE
+from eventlet.hubs import hub
 
 try:
     import event
@@ -44,7 +44,7 @@ class event_wrapper(object):
         return bool(self.impl and self.impl.pending())
 
 
-class Hub(BaseHub):
+class Hub(hub.BaseHub):
 
     SYSTEM_EXCEPTIONS = (KeyboardInterrupt, SystemExit)
 
@@ -117,11 +117,12 @@ class Hub(BaseHub):
         else:
             cb = real_cb
 
-        if evtype is READ:
+        if evtype is hub.FdListeners.READ:
             evt = event.read(fileno, cb, fileno)
-        elif evtype is WRITE:
+        elif evtype is hub.FdListeners.WRITE:
             evt = event.write(fileno, cb, fileno)
-
+        else:
+            return
         return super(Hub, self).add(evtype, fileno, evt, real_tb, mac)
 
     def signal(self, signalnum, handler):
@@ -138,8 +139,8 @@ class Hub(BaseHub):
         listener.cb.delete()
 
     def remove_descriptor(self, fileno):
-        for lcontainer in six.itervalues(self.listeners):
-            listener = lcontainer.pop(fileno, None)
+        for typ in hub.FdListeners.types:
+            listener = getattr(self.listeners, typ).pop(fileno, None)
             if listener:
                 try:
                     listener.cb.delete()

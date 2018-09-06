@@ -44,9 +44,9 @@ def select(read_list, write_list, error_list, timeout=None):
     # ds_error = {get_fileno(l): l for l in error_list}
     # or assign
     # for l in error_list:
-    #   if l.evtype == hub.READ:
+    #   if l.evtype == hub.FdListeners.READ:
     #        ds_read[get_fileno(l)] = l
-    #    elif l.evtype == hub.WRITE:
+    #    elif l.evtype == hub.FdListeners.WRITE:
     #        ds_write[get_fileno(l)] = l
 
     timers = []
@@ -74,9 +74,9 @@ def select(read_list, write_list, error_list, timeout=None):
         timers.append(hub.schedule_call_global(timeout, on_timeout))
 
     for fileno in ds_read:
-        listeners.append(hub.add(hub.READ, fileno, on_read, current.throw, lambda: None))
+        listeners.append(hub.add(hub.FdListeners.READ, fileno, on_read, current.throw, lambda: None))
     for fileno in ds_write:
-        listeners.append(hub.add(hub.WRITE, fileno, on_write, current.throw, lambda: None))
+        listeners.append(hub.add(hub.FdListeners.WRITE, fileno, on_write, current.throw, lambda: None))
 
     try:
         try:

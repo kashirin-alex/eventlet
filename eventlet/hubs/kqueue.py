@@ -1,23 +1,20 @@
 import os
-import sys
-from eventlet import patcher, support
+from eventlet import patcher
 import six
+from eventlet.hubs.hub import BaseHub
+
 select = patcher.original('select')
 time = patcher.original('time')
-
-from eventlet.hubs.hub import BaseHub, READ, WRITE, noop
 
 
 def is_available():
     return hasattr(select, 'kqueue')
 
 
-FILTERS = {READ: select.KQ_FILTER_READ,
-           WRITE: select.KQ_FILTER_WRITE}
-
-
 class Hub(BaseHub):
     MAX_EVENTS = 100
+    FILTERS = {BaseHub.FdListeners.READ: select.KQ_FILTER_READ,
+               BaseHub.FdListeners.WRITE: select.KQ_FILTER_WRITE}
 
     def __init__(self, clock=None):
         super(Hub, self).__init__(clock)
@@ -51,7 +48,7 @@ class Hub(BaseHub):
         events = self._events.setdefault(fileno, {})
         if evtype not in events:
             try:
-                event = select.kevent(fileno, FILTERS.get(evtype), select.KQ_EV_ADD)
+                event = select.kevent(fileno, self.FILTERS.get(evtype), select.KQ_EV_ADD)
                 self._control([event], 0, 0)
                 events[evtype] = event
             except ValueError:
@@ -70,7 +67,7 @@ class Hub(BaseHub):
         super(Hub, self).remove(listener)
         evtype = listener.evtype
         fileno = listener.fileno
-        if not self.listeners[evtype].get(fileno):
+        if not getattr(self.listeners, evtype).get(fileno):
             event = self._events[fileno].pop(evtype, None)
             if event is None:
                 return
@@ -90,16 +87,14 @@ class Hub(BaseHub):
             pass
 
     def wait(self, seconds=None):
-        if not self.listeners[READ] and not self.listeners[WRITE]:
+        if not self.listeners.read and not self.listeners.write:
             if seconds:
                 time.sleep(seconds)
             return
 
         result = self._control([], self.MAX_EVENTS, seconds)
         for event in result:
-            fileno = event.ident
             evfilt = event.filter
-            if evfilt == FILTERS[READ]:
-                self.listeners_events.append((self.READ, fileno))
-            if evfilt == FILTERS[WRITE]:
-                self.listeners_events.append((self.WRITE, fileno))
+            for typ in self.listeners.types:
+                if evfilt == self.FILTERS[typ]:
+                    self.listeners_events.append((getattr(self.listeners, typ), event.ident))
