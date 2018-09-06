@@ -97,4 +97,4 @@ class Hub(BaseHub):
             evfilt = event.filter
             for typ in self.listeners.types:
                 if evfilt == self.FILTERS[typ]:
-                    self.listeners_events.append((getattr(self.listeners, typ, None), event.ident))
+                    self.listeners_events.append((typ, event.ident))

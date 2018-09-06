@@ -14,6 +14,9 @@ EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT
 
+READ = hub.FdListeners.READ
+WRITE = hub.FdListeners.WRITE
+
 
 class Hub(hub.BaseHub):
     def __init__(self, clock=None):
@@ -92,7 +95,7 @@ class Hub(hub.BaseHub):
                 self.listeners_events.append((None, fileno))
                 continue
             if event & READ_MASK:
-                self.listeners_events.append((hub.FdListeners.READ, fileno))
+                self.listeners_events.append((READ, fileno))
             if event & WRITE_MASK:
-                self.listeners_events.append((hub.FdListeners.WRITE, fileno))
+                self.listeners_events.append((WRITE, fileno))
 
