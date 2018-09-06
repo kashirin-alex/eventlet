@@ -356,9 +356,9 @@ class BaseHub(object):
                 while closed:
                     close_one(closed.pop(-1))
 
-                # if listeners_events:
-                #    # Process one fd event at a time
-                #    process_listener_events(*listeners_events.popleft())
+                if not timers and listeners_events:
+                    # Process one fd event at a time
+                    process_listener_events(*listeners_events.popleft())
 
                 # Assign new timers
                 while next_timers:
@@ -370,9 +370,6 @@ class BaseHub(object):
                     if not listeners_events:
                         # wait for fd signals
                         wait(self.default_sleep())
-                    else:
-                        # Process one fd event at a time
-                        process_listener_events(*listeners_events.popleft())
                     continue
 
                 # current evaluated timer
