@@ -139,8 +139,8 @@ class Hub(hub.BaseHub):
         listener.cb.delete()
 
     def remove_descriptor(self, fileno):
-        for typ in hub.FdListeners.types:
-            listener = getattr(self.listeners, typ).pop(fileno, None)
+        for evtype in hub.FdListeners.types:
+            listener = self.listeners.__getattribute__(evtype).pop(fileno, None)
             if listener:
                 try:
                     listener.cb.delete()
