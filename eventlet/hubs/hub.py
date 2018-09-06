@@ -385,6 +385,10 @@ class BaseHub(object):
                         # wait for fd signals
                         sleep_time += delay
                         wait(sleep_time if sleep_time > 0 else 0)
+                    else:
+                        # Process all fds events
+                        while listeners_events:
+                            process_listener_events(*listeners_events.popleft())
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
 
