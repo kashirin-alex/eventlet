@@ -14,6 +14,9 @@ def is_available():
 # NOTE: we rely on the fact that the epoll flag constants
 # are identical in value to the poll constants
 
+READ = BaseHub.READ
+WRITE = BaseHub.WRITE
+
 
 class Hub(poll.Hub):
     def __init__(self, clock=None):
@@ -21,7 +24,7 @@ class Hub(poll.Hub):
         self.poll = select.epoll()
 
     def add(self, evtype, fileno, cb, tb, mac):
-        new = not (fileno in self.listeners[self.READ] or fileno in self.listeners[self.WRITE])
+        new = not (fileno in self.listeners[READ] or fileno in self.listeners[WRITE])
         listener = BaseHub.add(self, evtype, fileno, cb, tb, mac)
         try:
             # new=True, Means we've added a new listener

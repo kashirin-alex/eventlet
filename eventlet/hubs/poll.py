@@ -13,6 +13,8 @@ def is_available():
 EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT
+READ = hub.READ
+WRITE = hub.WRITE
 
 
 class Hub(hub.BaseHub):
@@ -32,9 +34,9 @@ class Hub(hub.BaseHub):
     def register(self, fileno, new=False):
         mask = 0
 
-        if self.listeners[self.READ].get(fileno):
+        if self.listeners[READ].get(fileno):
             mask |= READ_MASK | EXC_MASK
-        if self.listeners[self.WRITE].get(fileno):
+        if self.listeners[WRITE].get(fileno):
             mask |= WRITE_MASK | EXC_MASK
         try:
             if mask:
@@ -92,7 +94,7 @@ class Hub(hub.BaseHub):
                 self.listeners_events.append((None, fileno))
                 continue
             if event & READ_MASK:
-                self.listeners_events.append((hub.READ, fileno))
+                self.listeners_events.append((READ, fileno))
             if event & WRITE_MASK:
-                self.listeners_events.append((hub.WRITE, fileno))
+                self.listeners_events.append((WRITE, fileno))
 
