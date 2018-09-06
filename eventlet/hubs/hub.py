@@ -411,10 +411,6 @@ class BaseHub(object):
                 # remove current evaluated timer
                 heappop(timers)
 
-                # check for fds new signals
-                if not listeners_events and (readers or writers):
-                    wait(0)
-
                 if self.debug_blocking:
                     self.block_detect_pre()
                 try:
@@ -428,6 +424,9 @@ class BaseHub(object):
                 if self.debug_blocking:
                     self.block_detect_post()
 
+                # check for fds new signals
+                if not listeners_events and (readers or writers):
+                    wait(0)
             else:
                 del self.timers[:]
         finally:
