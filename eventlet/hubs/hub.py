@@ -356,61 +356,52 @@ class BaseHub(object):
                 while closed:
                     close_one(closed.pop(-1))
 
-                # Process one fd event at a time
-                if listeners_events:
-                    process_listener_events(*listeners_events.popleft())
-
                 # Assign new timers
                 while next_timers:
                     timer = next_timers.pop(-1)
                     if not timer.called:
                         heappush(timers, (timer.scheduled_time, timer))
 
-                if not timers:
-                    if not listeners_events:
-                        # wait for fd signals
-                        wait(self.default_sleep())
-                    continue
+                # process all due timers
+                sleep_time = 60.0
+                while timers:
+                    # current evaluated timer
+                    exp, timer = timers[0]
+                    if timer.called:
+                        # remove called/cancelled timer
+                        heappop(timers)
+                        continue
 
-                # current evaluated timer
-                exp, timer = timers[0]
-                if timer.called:
-                    # remove called/cancelled timer
-                    heappop(timers)
-                    continue
-
-                sleep_time = exp - self.clock()
-                if sleep_time > 0:
-                    if not listeners_events:
-                        # wait for fd signals
+                    sleep_time = exp - self.clock()
+                    if sleep_time > 0:
                         sleep_time += delay
-                        wait(sleep_time if sleep_time > 0 else 0)
-                    else:
-                        # Process all fds events
-                        while listeners_events:
-                            process_listener_events(*listeners_events.popleft())
-                    continue
-                delay = (sleep_time+delay)/2  # delay is negative value
+                        sleep_time = sleep_time if sleep_time > 0 else 0
+                        break
+                    delay = (sleep_time + delay) / 2  # delay is negative value
 
-                # remove current evaluated timer
-                heappop(timers)
+                    # remove current called timer
+                    heappop(timers)
 
-                if self.debug_blocking:
-                    self.block_detect_pre()
-                try:
-                    timer()
-                except SYSTEM_EXCEPTIONS:
-                    raise
-                except:
-                    if self.debug_exceptions:
-                        self.squelch_timer_exception(timer, sys.exc_info())
-                    clear_sys_exc_info()
-                if self.debug_blocking:
-                    self.block_detect_post()
+                    if self.debug_blocking:
+                        self.block_detect_pre()
+                    try:
+                        timer()
+                    except SYSTEM_EXCEPTIONS:
+                        raise
+                    except:
+                        if self.debug_exceptions:
+                            self.squelch_timer_exception(timer, sys.exc_info())
+                        clear_sys_exc_info()
+                    if self.debug_blocking:
+                        self.block_detect_post()
 
-                # check for fds new signals
-                if not listeners_events and (readers or writers):
-                    wait(0)
+                # wait for fd signals
+                wait(sleep_time)
+
+                # Process all fds events
+                while listeners_events:
+                    process_listener_events(*listeners_events.popleft())
+
             else:
                 del self.timers[:]
         finally:
@@ -443,6 +434,10 @@ class BaseHub(object):
         if self.debug_blocking:
             self.block_detect_post()
         #
+
+    def fire_timer(self, when):
+        # intermediate dummy place-holder
+        return
 
     @staticmethod
     def fire_timers(when):
