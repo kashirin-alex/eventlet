@@ -408,8 +408,8 @@ class BaseHub(object):
                     self.block_detect_post()
 
                 # check for fds new signals
-                if not listeners_events and (readers or writers):
-                    wait(0)
+                # if not listeners_events and (readers or writers):
+                #    wait(0)
             else:
                 del self.timers[:]
         finally:
