@@ -369,34 +369,33 @@ class BaseHub(object):
                     wait(self.default_sleep())
                     continue
 
-                while events:
-                    # current evaluated event
-                    exp, ev_details = events[0]
-                    typ, event = ev_details
+                # current evaluated event
+                exp, ev_details = events[0]
+                typ, event = ev_details
 
-                    due_time = exp - self.clock()
+                due_time = exp - self.clock()
 
-                    if typ == 0:  # timer
-                        if event.called:
-                            # remove called/cancelled timer
-                            heappop(events)
-                            continue
-                        if due_time > 0:
-                            # wait for fd signals
-                            due_time += delay
-                            wait(due_time if due_time > 0 else 0)
-                            continue
-
-                        # remove evaluated event
+                if typ == 0:  # timer
+                    if event.called:
+                        # remove called/cancelled timer
                         heappop(events)
-                        process_timer_event(event)
+                        continue
+                    if due_time > 0:
+                        # wait for fd signals
+                        due_time += delay
+                        wait(due_time if due_time > 0 else 0)
+                        continue
 
-                    elif typ == 1:  # fd listener
-                        # remove evaluated event
-                        heappop(events)
-                        process_listener_event(*event)
+                    # remove evaluated event
+                    heappop(events)
+                    process_timer_event(event)
 
-                    delay = (due_time + delay) / 2  # delay is negative value
+                elif typ == 1:  # fd listener
+                    # remove evaluated event
+                    heappop(events)
+                    process_listener_event(*event)
+
+                delay = (due_time + delay) / 2  # delay is negative value
 
             else:
                 del self.events[:]
