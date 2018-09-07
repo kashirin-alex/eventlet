@@ -337,15 +337,12 @@ class BaseHub(object):
             self.stopping = False
 
             closed = self.closed
-            process_listener_event = self.process_listener_event
-            process_timer_event = self.process_timer_event
-            next_events = self.next_events
+            fire_events = self.fire_events
+            prepare_events = self.prepare_events
             events = self.events
 
             wait = self.wait
             close_one = self.close_one
-
-            delay = 0
 
             while not self.stopping:
 
@@ -353,52 +350,18 @@ class BaseHub(object):
                 while closed:
                     close_one(closed.pop(-1))
 
-                # Assign new Events
-                while next_events:
-                    typ, event = next_events.pop(-1)
-                    if typ == 0:
-                        # timer
-                        if not event.called:
-                            heappush(events, (event.scheduled_time, (typ, event)))
-                    elif typ == 1:
-                        # file_no event
-                        ts, evtype_fileno = event
-                        heappush(events, (ts, (typ, evtype_fileno)))
+                prepare_events()
+                fire_events(self.clock())
+                prepare_events()
 
-                if not events:
-                    wait(self.default_sleep())
-                    continue
+                if events:
+                    sleep_time = events[0][0] - self.clock()  # + self.timer_delay
+                    if sleep_time < 0:
+                        sleep_time = 0
+                else:
+                    sleep_time = self.default_sleep()
 
-                # current evaluated event
-                exp, ev_details = events[0]
-                typ, event = ev_details
-
-                due_time = exp - self.clock()
-
-                if typ == 0:  # timer
-                    if event.called:
-                        # remove called/cancelled timer
-                        heappop(events)
-                        continue
-                    if due_time > 0:
-                        # wait for fd signals
-                        # due_time += delay
-                        wait(due_time if due_time > 0 else 0)
-                        continue
-
-                    # remove evaluated event
-                    heappop(events)
-                    process_timer_event(event)
-
-                elif typ == 1:  # fd listener
-                    # remove evaluated event
-                    heappop(events)
-                    process_listener_event(*event)
-
-                if not events:
-                    wait(0)
-
-                # delay = (due_time + delay) / 2  # delay is negative value
+                wait(sleep_time)
 
             else:
                 del self.events[:]
@@ -406,6 +369,48 @@ class BaseHub(object):
         finally:
             self.running = False
             self.stopping = False
+        #
+
+    def prepare_events(self):
+        events = self.events
+        next_events = self.next_events
+        while next_events:
+            typ, event = next_events.pop(-1)
+            if typ == 0:
+                # timer
+                if not event.called:
+                    heappush(events, (event.scheduled_time, (typ, event)))
+            elif typ == 1:
+                # file_no event
+                ts, evtype_fileno = event
+                heappush(events, (ts, (typ, evtype_fileno)))
+        #
+
+    def fire_events(self, when):
+        events = self.events
+        while events:
+            # current evaluated event
+            exp, ev_details = events[0]
+            typ, event = ev_details
+
+            due_time = exp - when
+
+            if typ == 0:  # timer
+                if event.called:
+                    # remove called/cancelled timer
+                    heappop(events)
+                    continue
+                if due_time > 0:
+                    return
+
+                # remove evaluated event
+                heappop(events)
+                self.process_timer_event(event)
+
+            elif typ == 1:  # fd listener
+                # remove evaluated event
+                heappop(events)
+                self.process_listener_event(*event)
         #
 
     def process_timer_event(self, timer):
