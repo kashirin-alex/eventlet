@@ -135,8 +135,8 @@ class BaseHub(object):
 
         self.clock = default_clock if clock is None else clock
         self.events = []
+        self.events_next = []
         self.event_notifier = orig_threading.Event()
-        self.heapq_lock = orig_threading.Lock()
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -348,6 +348,7 @@ class BaseHub(object):
 
             processors = (self.process_timer_event, self.process_listener_event)
             events = self.events
+            events_next = self.events_next
 
             closed = self.closed
             close_one = self.close_one
@@ -360,28 +361,36 @@ class BaseHub(object):
             events_waiter.start()
             event_notifier = self.event_notifier
             event_notifier.set()
-            heapq_lock = self.heapq_lock
 
             while not self.stopping:
 
                 # when = self.clock()
-                while events:
+                while events_next or events:
 
                     # Ditch all closed fds first.
                     while closed:
                         close_one(closed.pop(-1))
 
-                    # current evaluated event
+                    # prepare next events
+                    while events_next:
+                        typ, event = events_next.pop(-1)
+                        if typ == 0:
+                            # timer
+                            if not event.called:
+                                heappush(events, (event.scheduled_time, (typ, event)))
+                        elif typ == 1:
+                            # file_no event
+                            ts, evtype_fileno = event
+                            heappush(events, (ts, (typ, evtype_fileno)))
 
-                    with heapq_lock:
-                        exp, ev_details = events[0]
+                    # current evaluated event
+                    exp, ev_details = events[0]
                     typ, event = ev_details
 
                     if typ == 0:  # timer
                         if event.called:
                             # remove called/cancelled timer
-                            with heapq_lock:
-                                heappop(events)
+                            heappop(events)
                             continue
                         due = exp - self.clock()
                         if due > 0:
@@ -390,8 +399,7 @@ class BaseHub(object):
                         delay = (due + delay) / 2  # delay is negative value
 
                     # remove evaluated event
-                    with heapq_lock:
-                        heappop(events)
+                    heappop(events)
 
                     # process event
                     processors[typ](*event)
@@ -402,26 +410,20 @@ class BaseHub(object):
 
                 # wait for events , until due timer or notified for fd events
                 if events:
-                    with heapq_lock:
-                        sleep_time = events[0][0] - self.clock() + delay
+                    sleep_time = events[0][0] - self.clock() + delay
                     if sleep_time <= 0:
                         continue
                 else:
                     sleep_time = self.default_sleep()
 
-                try:
-                    event_notifier.wait(sleep_time)
-                    event_notifier.clear()
-                except Exception as e:
-                    print (e)
-                    pass
+                event_notifier.wait(sleep_time)
+                event_notifier.clear()
 
                 #
                 # wait(sleep_time)
 
             else:
-                with heapq_lock:
-                    del self.events[:]
+                del self.events[:]
         finally:
             self.running = False
             self.stopping = False
@@ -502,15 +504,15 @@ class BaseHub(object):
             clear_sys_exc_info()
 
     def add_listener_event(self, ts, evtype_fileno):
-        with self.heapq_lock:
-            heappush(self.events, (ts, (1, evtype_fileno)))
-        # self.next_events.append((1, (ts, evtype_fileno)))
+        # with self.heapq_lock:
+        #    heappush(self.events, (ts, (1, evtype_fileno)))
+        self.events_next.append((1, (ts, evtype_fileno)))
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        with self.heapq_lock:
-            heappush(self.events, (timer.scheduled_time, (0, timer)))
-        # self.next_events.append((0, timer))
+        # with self.heapq_lock:
+        #    heappush(self.events, (timer.scheduled_time, (0, timer)))
+        self.events_next.append((0, timer))
         return timer
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
