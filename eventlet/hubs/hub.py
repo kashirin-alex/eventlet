@@ -359,7 +359,7 @@ class BaseHub(object):
                     if typ == 0:
                         # timer
                         if not event.called:
-                            heappush(events, (event.scheduled_time, (typ, event)))
+                            heappush(events, (event.scheduled_time, (typ, (event,))))
                     elif typ == 1:
                         # file_no event
                         ts, evtype, fileno = event
@@ -374,11 +374,10 @@ class BaseHub(object):
                 processor = None
                 if event[0] == 0:
                     # timer
-                    if event[1].called:
+                    if event[1][0].called:
                         # remove called/cancelled timer
                         heappop(events)
                         continue
-                    event[1] = (event[1])
                     processor = process_timer_event
                 elif event[0] == 1:
                     processor = process_listener_event
