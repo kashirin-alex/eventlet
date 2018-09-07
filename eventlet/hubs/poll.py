@@ -86,15 +86,16 @@ class Hub(hub.BaseHub):
         except:
             return
 
+        ts = self.clock()
         for fileno, event in presult:
             if event & select.POLLNVAL:
                 self.remove_descriptor(fileno)
                 continue
             if event & EXC_MASK:
-                self.listeners_events.append((None, fileno))
+                self.add_listener_event(ts, None, fileno)
                 continue
             if event & READ_MASK:
-                self.listeners_events.append((READ, fileno))
+                self.add_listener_event(ts, READ, fileno)
             if event & WRITE_MASK:
-                self.listeners_events.append((WRITE, fileno))
+                self.add_listener_event(ts, WRITE, fileno)
 
