@@ -4,6 +4,7 @@ import os
 import sys
 import traceback
 import signal
+from collections import deque
 
 arm_alarm = None
 if hasattr(signal, 'setitimer'):
@@ -134,8 +135,10 @@ class BaseHub(object):
         self.lclass = FdListener
 
         self.clock = default_clock if clock is None else clock
-        self.events = []
-        self.events_next = []
+
+        self.timers = []
+        self.next_timers = []
+        self.listeners_events = deque()
         self.event_notifier = orig_threading.Event()
 
         self.greenlet = greenlet.greenlet(self.run)
@@ -328,9 +331,11 @@ class BaseHub(object):
 
     def waiting_thread(self):
         wait = self.wait
+        listeners_events = self.listeners_events
         event_notifier = self.event_notifier
         while not self.stopping:
-            if wait(60.0):
+            wait(60.0)
+            if listeners_events:
                 event_notifier.set()
         #
 
@@ -346,15 +351,14 @@ class BaseHub(object):
             self.running = True
             self.stopping = False
 
-            processors = (self.process_timer_event, self.process_listener_event)
-            events = self.events
-            events_next = self.events_next
-            prepare_events = self.prepare_events
+            timers = self.timers
+            next_timers = self.next_timers
 
+            listeners_events = self.listeners_events
+            process_listener_event = self.process_listener_event
             closed = self.closed
             close_one = self.close_one
-            # writers = self.listeners[WRITE]
-            # readers = self.listeners[READ]
+
             delay = 0
 
             events_waiter = orig_threading.Thread(target=self.waiting_thread)
@@ -364,79 +368,73 @@ class BaseHub(object):
 
             while not self.stopping:
 
-                # when = self.clock()
-                while events_next or events:
+                # Ditch all closed fds first.
+                while closed:
+                    close_one(closed.pop(-1))
 
-                    # Ditch all closed fds first.
-                    while closed:
-                        close_one(closed.pop(-1))
+                # Process one fd event at a time
+                if listeners_events:
+                    process_listener_event(*listeners_events.popleft())
 
-                    prepare_events()
-                    if not events:
-                        break
+                # Assign new timers
+                while next_timers:
+                    timer = next_timers.pop(-1)
+                    if not timer.called:
+                        heappush(timers, (timer.scheduled_time, timer))
 
-                    # current evaluated event
-                    exp, ev_details = events[0]
-                    typ, event = ev_details
+                if not timers:
+                    if not listeners_events:
+                        # wait for fd signals
+                        event_notifier.clear()
+                        event_notifier.wait(self.default_sleep())
+                        event_notifier.clear()
+                    continue
 
-                    if typ == 0:  # timer
-                        if event.called:
-                            # remove called/cancelled timer
-                            heappop(events)
-                            continue
-                        due = exp - self.clock()
-                        if due > 0:
-                            if events_next:
-                                prepare_events()
-                            break
-                        event = (event, )
-                        delay = (due + delay) / 2  # delay is negative value
+                # current evaluated timer
+                exp, timer = timers[0]
+                if timer.called:
+                    # remove called/cancelled timer
+                    heappop(timers)
+                    continue
 
-                    # remove evaluated event
-                    heappop(events)
-
-                    # process event
-                    processors[typ](*event)
-
-                    # check for events
-                    # if readers or writers:
-                    #    wait(0)
-
-                # wait for events , until due timer or notified for fd events
-                if events:
-                    sleep_time = events[0][0] - self.clock() + delay
+                sleep_time = exp - self.clock()
+                if sleep_time > 0:
+                    if listeners_events:
+                        continue
+                    sleep_time += delay
                     if sleep_time <= 0:
                         continue
-                else:
-                    sleep_time = self.default_sleep()
+                    if not listeners_events:
+                        # wait for fd signals
+                        event_notifier.clear()
+                        event_notifier.wait(sleep_time)
+                        event_notifier.clear()
+                    continue
+                delay = (sleep_time+delay)/2  # delay is negative value
 
-                event_notifier.wait(sleep_time)
-                event_notifier.clear()
+                # remove current evaluated timer
+                heappop(timers)
 
-                #
-                # wait(sleep_time)
+                if self.debug_blocking:
+                    self.block_detect_pre()
+                try:
+                    timer()
+                except SYSTEM_EXCEPTIONS:
+                    raise
+                except:
+                    if self.debug_exceptions:
+                        self.squelch_timer_exception(timer, sys.exc_info())
+                    clear_sys_exc_info()
+                if self.debug_blocking:
+                    self.block_detect_post()
 
             else:
-                del self.events[:]
+                del self.timers[:]
+                del self.next_timers[:]
+                del self.listeners_events[:]
         finally:
             self.running = False
             self.stopping = False
-        #
-
-    def process_timer_event(self, timer):
-        if self.debug_blocking:
-            self.block_detect_pre()
-        try:
-            timer()
-        except SYSTEM_EXCEPTIONS:
-            raise
-        except:
-            if self.debug_exceptions:
-                self.squelch_timer_exception(timer, sys.exc_info())
-            clear_sys_exc_info()
-
-        if self.debug_blocking:
-            self.block_detect_post()
         #
 
     def process_listener_event(self, evtype, fileno):
@@ -463,21 +461,6 @@ class BaseHub(object):
 
         if self.debug_blocking:
             self.block_detect_post()
-        #
-
-    def prepare_events(self):
-        events = self.events
-        events_next = self.events_next
-        while events_next:
-            typ, event = events_next.pop(-1)
-            if typ == 0:
-                # timer
-                if not event.called:
-                    heappush(events, (event.scheduled_time, (typ, event)))
-            elif typ == 1:
-                # file_no event
-                ts, evtype_fileno = event
-                heappush(events, (ts, (typ, evtype_fileno)))
         #
 
     def abort(self, wait=False):
@@ -512,16 +495,12 @@ class BaseHub(object):
             sys.stderr.flush()
             clear_sys_exc_info()
 
-    def add_listener_event(self, ts, evtype_fileno):
-        # with self.heapq_lock:
-        #    heappush(self.events, (ts, (1, evtype_fileno)))
-        self.events_next.append((1, (ts, evtype_fileno)))
+    def add_listener_event(self, *evtype_fileno):
+        self.listeners_events.append(evtype_fileno)
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        # with self.heapq_lock:
-        #    heappush(self.events, (timer.scheduled_time, (0, timer)))
-        self.events_next.append((0, timer))
+        self.next_timers.append(timer)
         return timer
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
@@ -554,13 +533,13 @@ class BaseHub(object):
         return self.listeners[WRITE].values()
 
     def get_timers_count(self):
-        return self.events.__len__()
+        return self.timers.__len__()+self.next_timers.__len__()
 
     def get_listeners_count(self):
         return self.listeners[READ].__len__(),  self.listeners[WRITE].__len__()
 
     def get_listeners_events_count(self):
-        return 0
+        return self.listeners_events.__len__()
 
     def set_debug_listeners(self, value):
         self.lclass = DebugListener if value else FdListener
