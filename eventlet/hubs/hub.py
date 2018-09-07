@@ -330,11 +330,11 @@ class BaseHub(object):
         wait = self.wait
         events = self.events
         event_notifier = self.event_notifier
+        # heapq_lock = self.heapq_lock
         while not self.stopping:
             wait(60)
-            with self.heapq_lock:
-                if events and not event_notifier.is_set():
-                    event_notifier.set()
+            if events and not event_notifier.is_set():
+                event_notifier.set()
         #
 
     def run(self, *a, **kw):
@@ -363,7 +363,7 @@ class BaseHub(object):
             events_waiter.start()
             event_notifier = self.event_notifier
             event_notifier.set()
-
+            heapq_lock = self.heapq_lock
             while not self.stopping:
 
                 # when = self.clock()
@@ -375,14 +375,14 @@ class BaseHub(object):
 
                     # current evaluated event
 
-                    with self.heapq_lock:
+                    with heapq_lock:
                         exp, ev_details = events[0]
                     typ, event = ev_details
 
                     if typ == 0:  # timer
                         if event.called:
                             # remove called/cancelled timer
-                            with self.heapq_lock:
+                            with heapq_lock:
                                 heappop(events)
                             continue
                         due = exp - self.clock()
@@ -392,7 +392,7 @@ class BaseHub(object):
                         delay = (due + delay) / 2  # delay is negative value
 
                     # remove evaluated event
-                    with self.heapq_lock:
+                    with heapq_lock:
                         heappop(events)
 
                     # process event
@@ -402,9 +402,9 @@ class BaseHub(object):
                     # if readers or writers:
                     #    wait(0)
 
-                # wait for events
+                # wait for events , until due timer or notified for fd events
                 if events:
-                    with self.heapq_lock:
+                    with heapq_lock:
                         sleep_time = events[0][0] - self.clock() + delay
                     if sleep_time < 0:
                         sleep_time = 0
@@ -417,7 +417,7 @@ class BaseHub(object):
                 # wait(sleep_time)
 
             else:
-                with self.heapq_lock:
+                with heapq_lock:
                     del self.events[:]
         finally:
             self.running = False
