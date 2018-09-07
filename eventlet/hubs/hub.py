@@ -350,9 +350,9 @@ class BaseHub(object):
                 while closed:
                     close_one(closed.pop(-1))
 
-                prepare_events()
+                # prepare_events()
                 fire_events(self.clock())
-                prepare_events()
+                # prepare_events()
 
                 if events:
                     sleep_time = events[0][0] - self.clock()  # + self.timer_delay
@@ -488,13 +488,13 @@ class BaseHub(object):
             clear_sys_exc_info()
 
     def add_listener_event(self, ts, evtype_fileno):
-        # heappush(self.events, (ts, (1, evtype_fileno)))
-        self.next_events.append((1, (ts, evtype_fileno)))
+        heappush(self.events, (ts, (1, evtype_fileno)))
+        # self.next_events.append((1, (ts, evtype_fileno)))
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        # heappush(self.events, (timer.scheduled_time, (0, timer)))
-        self.next_events.append((0, timer))
+        heappush(self.events, (timer.scheduled_time, (0, timer)))
+        # self.next_events.append((0, timer))
         return timer
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
