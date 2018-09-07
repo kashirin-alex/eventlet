@@ -372,8 +372,8 @@ class BaseHub(object):
                 while closed:
                     close_one(closed.pop(-1))
 
-                # Process one fd event at a time
-                if listeners_events:
+                # Process all fds events
+                while listeners_events:
                     process_listener_event(*listeners_events.popleft())
 
                 # Assign new timers
