@@ -347,7 +347,7 @@ class BaseHub(object):
 
             while not self.stopping:
 
-                when = self.clock()
+                # when = self.clock()
                 while events:
 
                     # Ditch all closed fds first.
@@ -363,7 +363,7 @@ class BaseHub(object):
                             # remove called/cancelled timer
                             heappop(events)
                             continue
-                        due = exp - when
+                        due = exp - self.clock()
                         if due > 0:
                             break
                         event = (event, )
