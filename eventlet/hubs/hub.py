@@ -378,6 +378,7 @@ class BaseHub(object):
                         # remove called/cancelled timer
                         heappop(events)
                         continue
+                    event[1] = (event[1])
                     processor = process_timer_event
                 elif event[0] == 1:
                     processor = process_listener_event
