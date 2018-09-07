@@ -136,6 +136,7 @@ class BaseHub(object):
         self.clock = default_clock if clock is None else clock
         self.timers = []
         self.next_timers = []
+        self.timer_delay = 0.00
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -337,18 +338,16 @@ class BaseHub(object):
             self.running = True
             self.stopping = False
 
-            writers = self.listeners[self.READ]
-            readers = self.listeners[self.WRITE]
+            timers = self.timers
+            prepare_timers = self.prepare_timers
+            fire_timers = self.fire_timers
+
             closed = self.closed
             listeners_events = self.listeners_events
             process_listener_events = self.process_listener_events
-            timers = self.timers
-            next_timers = self.next_timers
 
             wait = self.wait
             close_one = self.close_one
-
-            delay = 0
 
             while not self.stopping:
 
@@ -357,47 +356,22 @@ class BaseHub(object):
                     close_one(closed.pop(-1))
 
                 # Assign new timers
-                while next_timers:
-                    timer = next_timers.pop(-1)
-                    if not timer.called:
-                        heappush(timers, (timer.scheduled_time, timer))
-
-                wait(0)
-                sleep_time = 60.0 if not listeners_events else 0
+                prepare_timers()
 
                 # process all due timers
-                while timers:
-                    # current evaluated timer
-                    exp, timer = timers[0]
-                    if timer.called:
-                        # remove called/cancelled timer
-                        heappop(timers)
-                        continue
+                fire_timers(self.clock())
 
-                    sleep_time = exp - self.clock()
-                    if sleep_time > 0:
-                        sleep_time += delay
-                        sleep_time = sleep_time if sleep_time > 0 else 0
-                        break
-                    delay = (sleep_time + delay) / 2  # delay is negative value
-
-                    # remove current called timer
-                    heappop(timers)
-
-                    if self.debug_blocking:
-                        self.block_detect_pre()
-                    try:
-                        timer()
-                    except SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        if self.debug_exceptions:
-                            self.squelch_timer_exception(timer, sys.exc_info())
-                        clear_sys_exc_info()
-                    if self.debug_blocking:
-                        self.block_detect_post()
+                # Assign new timers
+                prepare_timers()
 
                 # wait for fd signals
+                if timers:
+                    sleep_time = timers[0][0]+self.timer_delay-self.clock()
+                    if sleep_time < 0:
+                        sleep_time = 0
+                else:
+                    sleep_time = self.default_sleep()
+
                 wait(sleep_time)
 
                 # Process all fds events
@@ -437,19 +411,46 @@ class BaseHub(object):
             self.block_detect_post()
         #
 
-    def fire_timer(self, when):
-        # intermediate dummy place-holder
-        return
+    def fire_timers(self, when):
+        timers = self.timers
+        while timers:
+            # current evaluated timer
+            exp, timer = timers[0]
+            if timer.called:
+                # remove called/cancelled timer
+                heappop(timers)
+                continue
 
-    @staticmethod
-    def fire_timers(when):
-        # intermediate dummy place-holder
-        return
+            sleep_time = exp - when
+            if sleep_time > 0:
+                return
+            self.timer_delay = (sleep_time + self.timer_delay) / 2  # delay is negative value
 
-    @staticmethod
-    def prepare_timers():
-        # intermediate dummy place-holder
-        return
+            # remove current called timer
+            heappop(timers)
+
+            if self.debug_blocking:
+                self.block_detect_pre()
+            try:
+                timer()
+            except SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                if self.debug_exceptions:
+                    self.squelch_timer_exception(timer, sys.exc_info())
+                clear_sys_exc_info()
+            if self.debug_blocking:
+                self.block_detect_post()
+        #
+
+    def prepare_timers(self):
+        timers = self.timers
+        next_timers = self.next_timers
+        while next_timers:
+            timer = next_timers.pop(-1)
+            if not timer.called:
+                heappush(timers, (timer.scheduled_time, timer))
+        #
 
     def abort(self, wait=False):
         """Stop the runloop. If run is executing, it will exit after
