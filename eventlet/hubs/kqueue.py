@@ -93,10 +93,12 @@ class Hub(BaseHub):
             return
 
         result = self._control([], self.MAX_EVENTS, seconds)
+
+        ts = self.clock()
         for event in result:
             fileno = event.ident
             evfilt = event.filter
             if evfilt == self.FILTERS[self.READ]:
-                self.listeners_events.append((self.READ, fileno))
+                self.add_listener_event(ts, (self.READ, fileno))
             if evfilt == self.FILTERS[self.WRITE]:
-                self.listeners_events.append((self.WRITE, fileno))
+                self.add_listener_event(ts, (self.WRITE, fileno))

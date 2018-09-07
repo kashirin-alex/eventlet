@@ -45,7 +45,7 @@ class Hub(hub.BaseHub):
             ts = self.clock()
             for ev_type, events in ((READ, rs), (WRITE, ws), (None, es)):
                 for fileno in events:
-                    self.add_listener_event(ts, ev_type, fileno)
+                    self.add_listener_event(ts, (ev_type, fileno))
 
         except select.error as e:
             errn = support.get_errno(e)

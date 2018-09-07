@@ -358,33 +358,34 @@ class BaseHub(object):
                 # current evaluated event
                 exp, ev_details = events[0]
                 typ, event = ev_details
+                due_time = exp - self.clock()
 
                 if typ == 0:
                     # timer
+
                     if event.called:
                         # remove called/cancelled timer
                         heappop(events)
                         continue
-                    sleep_time = exp - self.clock()
-                    if sleep_time > 0:
-                        sleep_time += delay
+
+                    if due_time > 0:
                         # wait for fd signals
-                        wait(sleep_time if sleep_time > 0 else 0)
+                        due_time += delay
+                        wait(due_time if due_time > 0 else 0)
                         continue
+
+                    # remove evaluated event
+                    heappop(events)
                     process_timer_event(event)
 
                 elif typ == 1:
                     # fd listener
-                    sleep_time = exp - self.clock()
+
+                    # remove evaluated event
+                    heappop(events)
                     process_listener_event(*event)
-                else:
-                    sleep_time = 0
-                delay = (sleep_time + delay) / 2  # delay is negative value
 
-                # remove evaluated event
-                heappop(events)
-
-
+                delay = (due_time + delay) / 2  # delay is negative value
             else:
                 del self.events[:]
         finally:
@@ -466,8 +467,8 @@ class BaseHub(object):
             sys.stderr.flush()
             clear_sys_exc_info()
 
-    def add_listener_event(self, ts, evtype, fileno):
-        heappush(self.events, (ts, (1, (evtype, fileno))))
+    def add_listener_event(self, ts, evtype_fileno):
+        heappush(self.events, (ts, (1, evtype_fileno)))
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
