@@ -335,22 +335,25 @@ class BaseHub(object):
             self.running = True
             self.stopping = False
 
-            closed = self.closed
             processors = (self.process_timer_event, self.process_listener_event)
             events = self.events
 
-            wait = self.wait
+            closed = self.closed
             close_one = self.close_one
+            wait = self.wait
+            writers = self.listeners[WRITE]
+            readers = self.listeners[READ]
             delay = 0
 
             while not self.stopping:
 
-                # Ditch all closed fds first.
-                while closed:
-                    close_one(closed.pop(-1))
-
-                # when = self.clock()
+                when = self.clock()
                 while events:
+
+                    # Ditch all closed fds first.
+                    while closed:
+                        close_one(closed.pop(-1))
+
                     # current evaluated event
                     exp, ev_details = events[0]
                     typ, event = ev_details
@@ -360,7 +363,7 @@ class BaseHub(object):
                             # remove called/cancelled timer
                             heappop(events)
                             continue
-                        due = exp - self.clock()  # when  #
+                        due = exp - when
                         if due > 0:
                             break
                         event = (event, )
@@ -373,7 +376,8 @@ class BaseHub(object):
                     processors[typ](*event)
 
                     # check for events
-                    wait(0)
+                    if readers or writers:
+                        wait(0)
 
                 # wait for events
                 if events:
