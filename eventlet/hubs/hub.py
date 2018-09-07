@@ -367,13 +367,9 @@ class BaseHub(object):
                         heappush(timers, (timer.scheduled_time, timer))
 
                 if not timers:
-                    # check for fds new signals
-                    if readers or writers:  # not listeners_events and
-                        wait(0)
-                        if listeners_events:
-                            continue
-                    # wait for fd signals
-                    wait(self.default_sleep())
+                    if not listeners_events:
+                        # wait for fd signals
+                        wait(self.default_sleep())
                     continue
 
                 # current evaluated timer
@@ -389,9 +385,10 @@ class BaseHub(object):
                         # wait for fd signals
                         sleep_time += delay
                         wait(sleep_time if sleep_time > 0 else 0)
-                    # Process all fds events
-                    while listeners_events:
-                        process_listener_events(*listeners_events.popleft())
+                    else:
+                        # Process all fds events
+                        while listeners_events:
+                            process_listener_events(*listeners_events.popleft())
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
 
@@ -411,6 +408,9 @@ class BaseHub(object):
                 if self.debug_blocking:
                     self.block_detect_post()
 
+                # check for fds new signals
+                if not listeners_events and (readers or writers):
+                    wait(0)
             else:
                 del self.timers[:]
         finally:
