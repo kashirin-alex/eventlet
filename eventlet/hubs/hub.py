@@ -331,11 +331,10 @@ class BaseHub(object):
 
     def waiting_thread(self):
         wait = self.wait
-        listeners_events = self.listeners_events
         event_notifier = self.event_notifier
         while not self.stopping:
             wait(60.0)
-            if listeners_events:
+            if not event_notifier.is_set():
                 event_notifier.set()
         #
 
@@ -374,6 +373,7 @@ class BaseHub(object):
 
                 # Process all fds events
                 while listeners_events:
+
                     process_listener_event(*listeners_events.popleft())
 
                 # Assign new timers
@@ -401,16 +401,17 @@ class BaseHub(object):
                     sleep_time += delay
                     if sleep_time <= 0:
                         continue
-                    if not listeners_events:
+                    if not listeners_events and not next_timers:
                         # wait for fd signals
                         event_notifier.wait(sleep_time)
                         event_notifier.clear()
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
 
-                # remove current evaluated timer
+                # remove evaluated timer
                 heappop(timers)
 
+                # call on timer
                 if self.debug_blocking:
                     self.block_detect_pre()
                 try:
