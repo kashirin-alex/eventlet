@@ -396,14 +396,15 @@ class BaseHub(object):
                     #    wait(0)
 
                 # wait for events
-                event_notifier.wait(60)
+                if events:
+                    sleep_time = events[0][0] - self.clock() + delay
+                    if sleep_time < 0:
+                        sleep_time = 0
+                else:
+                    sleep_time = self.default_sleep()
 
-                # if events:
-                #    sleep_time = events[0][0] - self.clock() + delay
-                #    if sleep_time < 0:
-                #        sleep_time = 0
-                # else:
-                #    sleep_time = self.default_sleep()
+                event_notifier.wait(sleep_time)
+
                 #
                 # wait(sleep_time)
 
