@@ -372,7 +372,7 @@ class BaseHub(object):
                         wait(0)
                         if listeners_events:
                             continue
-                        # wait for fd signals
+                    # wait for fd signals
                     wait(self.default_sleep())
                     continue
 
@@ -385,9 +385,10 @@ class BaseHub(object):
 
                 sleep_time = exp - self.clock()
                 if sleep_time > 0:
-                    # wait for fd signals
-                    sleep_time += delay
-                    wait(sleep_time if sleep_time > 0 else 0)
+                    if not listeners_events:
+                        # wait for fd signals
+                        sleep_time += delay
+                        wait(sleep_time if sleep_time > 0 else 0)
                     # Process all fds events
                     while listeners_events:
                         process_listener_events(*listeners_events.popleft())
