@@ -135,6 +135,7 @@ class BaseHub(object):
 
         self.clock = default_clock if clock is None else clock
         self.timers = []
+        self.timer_delay = 0
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -336,8 +337,7 @@ class BaseHub(object):
             self.running = True
             self.stopping = False
 
-            timers = self.timers
-            process_timer_event = self.process_timer_event
+            fire_timers = self.fire_timers
 
             closed = self.closed
             close_one = self.close_one
@@ -345,32 +345,13 @@ class BaseHub(object):
             listeners_events = self.listeners_events
             process_listener_event = self.process_listener_event
 
-            delay = 0
-
             while not self.stopping:
 
                 # Ditch all closed fds first.
                 while closed:
                     close_one(closed.pop(-1))
 
-                sleep_time = None
-                when = self.clock()
-                while timers:
-                    # current evaluated
-                    exp, timer = timers[0]
-                    if timer.called:
-                        # remove called/cancelled timer
-                        heappop(timers)
-                        continue
-                    due = exp - when  # self.clock()
-                    if due > 0:
-                        sleep_time = exp + delay
-                        break
-                    delay = (due + delay) / 2  # delay is negative value
-                    # remove evaluated event
-                    heappop(timers)
-                    # process timer
-                    process_timer_event(timer)
+                sleep_time = fire_timers(self.clock())
 
                 if sleep_time is not None:
                     sleep_time = sleep_time - self.clock()
@@ -390,21 +371,42 @@ class BaseHub(object):
             self.running = False
             self.stopping = False
         #
+            
+    def prepare_timers(self):
+        pass
 
-    def process_timer_event(self, timer):
-        if self.debug_blocking:
-            self.block_detect_pre()
-        try:
-            timer()
-        except SYSTEM_EXCEPTIONS:
-            raise
-        except:
-            if self.debug_exceptions:
-                self.squelch_timer_exception(timer, sys.exc_info())
-            clear_sys_exc_info()
+    def fire_timers(self, when):
+        debug_blocking = self.debug_blocking
+        timers = self.timers
+        while timers:
+            # current evaluated
+            exp, timer = timers[0]
+            if timer.called:
+                # remove called/cancelled timer
+                heappop(timers)
+                continue
+            due = exp - when  # self.clock()
+            if due > 0:
+                return exp + self.timer_delay
 
-        if self.debug_blocking:
-            self.block_detect_post()
+            self.timer_delay = (due + self.timer_delay) / 2  # delay is negative value
+
+            # remove evaluated event
+            heappop(timers)
+
+            if debug_blocking:
+                self.block_detect_pre()
+            try:
+                timer()
+            except SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                if self.debug_exceptions:
+                    self.squelch_timer_exception(timer, sys.exc_info())
+                clear_sys_exc_info()
+
+            if debug_blocking:
+                self.block_detect_post()
         #
 
     def process_listener_event(self, evtype, fileno):
@@ -423,6 +425,7 @@ class BaseHub(object):
                 l = self.listeners[WRITE].get(fileno)
                 if l is not None:
                     l.cb(fileno)
+
         except SYSTEM_EXCEPTIONS:
             raise
         except:
