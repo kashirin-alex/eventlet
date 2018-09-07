@@ -362,8 +362,10 @@ class BaseHub(object):
                     if not timer.called:
                         heappush(timers, (timer.scheduled_time, timer))
 
+                wait(0)
+                sleep_time = 60.0 if not listeners_events else 0
+
                 # process all due timers
-                sleep_time = 60.0
                 while timers:
                     # current evaluated timer
                     exp, timer = timers[0]
