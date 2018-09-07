@@ -349,7 +349,7 @@ class BaseHub(object):
                 while closed:
                     close_one(closed.pop(-1))
 
-                when = self.clock()
+                # when = self.clock()
                 while events:
                     # current evaluated event
                     exp, ev_details = events[0]
@@ -360,7 +360,7 @@ class BaseHub(object):
                             # remove called/cancelled timer
                             heappop(events)
                             continue
-                        due = exp - when  # self.clock()
+                        due = exp - self.clock()  # when  #
                         if due > 0:
                             break
                         event = (event, )
@@ -372,6 +372,10 @@ class BaseHub(object):
                     # process event
                     processors[typ](*event)
 
+                    # check for events
+                    wait(0)
+
+                # wait for events
                 if events:
                     sleep_time = events[0][0] - self.clock() + delay
                     if sleep_time < 0:
