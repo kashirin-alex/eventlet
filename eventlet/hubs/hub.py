@@ -331,8 +331,11 @@ class BaseHub(object):
         events = self.events
         event_notifier = self.event_notifier
         # heapq_lock = self.heapq_lock
+
         while not self.stopping:
-            wait(60)
+            ts = self.clock()
+            wait(60.0)
+            print ('waiting_thread, waited:'+str(self.clock()-ts))
             if events and not event_notifier.is_set():
                 event_notifier.set()
         #
@@ -406,8 +409,8 @@ class BaseHub(object):
                 if events:
                     with heapq_lock:
                         sleep_time = events[0][0] - self.clock() + delay
-                    if sleep_time < 0:
-                        sleep_time = 0
+                    if sleep_time <= 0:
+                        continue
                 else:
                     sleep_time = self.default_sleep()
 
