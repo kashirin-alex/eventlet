@@ -337,12 +337,13 @@ class BaseHub(object):
             self.stopping = False
 
             closed = self.closed
-            fire_events = self.fire_events
-            prepare_events = self.prepare_events
+            process_timer_event = self.process_timer_event
+            process_listener_event = self.process_listener_event
             events = self.events
 
             wait = self.wait
             close_one = self.close_one
+            delay = 0
 
             while not self.stopping:
 
@@ -351,11 +352,36 @@ class BaseHub(object):
                     close_one(closed.pop(-1))
 
                 # prepare_events()
-                fire_events(self.clock())
+                # fire_events(self.clock())
                 # prepare_events()
 
+                when = self.clock()
+                while events:
+                    # current evaluated event
+                    exp, ev_details = events[0]
+                    typ, event = ev_details
+                    due_time = exp - when
+
+                    if typ == 0:  # timer
+                        if event.called:
+                            # remove called/cancelled timer
+                            heappop(events)
+                            continue
+                        if due_time > 0:
+                            break
+                        delay = (due_time + delay) / 2  # delay is negative value
+
+                        # remove evaluated event
+                        heappop(events)
+                        process_timer_event(event)
+
+                    elif typ == 1:  # fd listener
+                        # remove evaluated event
+                        heappop(events)
+                        process_listener_event(*event)
+
                 if events:
-                    sleep_time = events[0][0] - self.clock()  # + self.timer_delay
+                    sleep_time = events[0][0] - self.clock() + delay
                     if sleep_time < 0:
                         sleep_time = 0
                 else:
