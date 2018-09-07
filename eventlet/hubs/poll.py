@@ -98,4 +98,4 @@ class Hub(hub.BaseHub):
                 self.add_listener_event(ts, (READ, fileno))
             if event & WRITE_MASK:
                 self.add_listener_event(ts, (WRITE, fileno))
-
+        return True

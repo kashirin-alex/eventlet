@@ -334,9 +334,9 @@ class BaseHub(object):
 
         while not self.stopping:
             ts = self.clock()
-            wait(60.0)
+            rs = wait(60.0)
             print ('waiting_thread, waited:'+str(self.clock()-ts))
-            if events and not event_notifier.is_set():
+            if rs:
                 event_notifier.set()
         #
 
@@ -415,8 +415,12 @@ class BaseHub(object):
                 else:
                     sleep_time = self.default_sleep()
 
-                event_notifier.wait(sleep_time)
-                event_notifier.clear()
+                try:
+                    event_notifier.wait(sleep_time)
+                    event_notifier.clear()
+                except Exception as e:
+                    print (e)
+                    pass
 
                 #
                 # wait(sleep_time)
