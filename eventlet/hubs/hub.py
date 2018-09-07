@@ -358,7 +358,6 @@ class BaseHub(object):
                 # current evaluated event
                 exp, ev_details = events[0]
                 typ, event = ev_details
-                due_time = exp - self.clock()
 
                 if typ == 0:
                     # timer
@@ -368,11 +367,13 @@ class BaseHub(object):
                         heappop(events)
                         continue
 
+                    due_time = exp - self.clock()
                     if due_time > 0:
                         # wait for fd signals
                         due_time += delay
                         wait(due_time if due_time > 0 else 0)
                         continue
+                    delay = (due_time + delay) / 2  # delay is negative value
 
                     # remove evaluated event
                     heappop(events)
@@ -385,7 +386,6 @@ class BaseHub(object):
                     heappop(events)
                     process_listener_event(*event)
 
-                delay = (due_time + delay) / 2  # delay is negative value
             else:
                 del self.events[:]
         finally:
