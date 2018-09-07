@@ -370,7 +370,8 @@ class BaseHub(object):
                     # check for fds new signals
                     if readers or writers:  # not listeners_events and
                         wait(0)
-                    if not listeners_events:
+                        if listeners_events:
+                            continue
                         # wait for fd signals
                         wait(self.default_sleep())
                     continue
