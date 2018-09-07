@@ -269,7 +269,7 @@ class BaseHub(object):
             listeners += self.secondaries[evtype].get(fileno, [])
 
         for listener in listeners:
-            self.process_listener_event(listener.evtype, listener.fileno)
+            self.add_listener_event(listener.evtype, listener.fileno)
 
     @staticmethod
     def close_one(listener):
