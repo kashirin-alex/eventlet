@@ -362,8 +362,10 @@ class BaseHub(object):
 
             events_waiter = orig_threading.Thread(target=self.waiting_thread)
             events_waiter.start()
-            event_notifier = self.event_notifier
-            event_notifier.set()
+
+            self.event_notifier.set()
+            event_notifier_wait = self.event_notifier.wait
+            event_notifier_clear = self.event_notifier.clear
 
             while not self.stopping:
                 debug_blocking = self.debug_blocking
@@ -383,13 +385,13 @@ class BaseHub(object):
                             l = listeners[evtype].get(fileno)
                             if l is not None:
                                 l.cb(fileno)
-                        else:
-                            l = listeners[READ].get(fileno)
-                            if l is not None:
-                                l.cb(fileno)
-                            l = listeners[WRITE].get(fileno)
-                            if l is not None:
-                                l.cb(fileno)
+                            continue
+                        l = listeners[READ].get(fileno)
+                        if l is not None:
+                            l.cb(fileno)
+                        l = listeners[WRITE].get(fileno)
+                        if l is not None:
+                            l.cb(fileno)
                     except SYSTEM_EXCEPTIONS:
                         raise
                     except:
@@ -407,8 +409,8 @@ class BaseHub(object):
                 if not timers:
                     if not listeners_events:
                         # wait for fd signals
-                        event_notifier.wait(self.default_sleep())
-                        event_notifier.clear()
+                        event_notifier_wait(self.default_sleep())
+                        event_notifier_clear()
                     continue
 
                 # current evaluated timer
@@ -425,8 +427,8 @@ class BaseHub(object):
                         continue
                     if not listeners_events and not next_timers:
                         # wait for fd signals
-                        event_notifier.wait(sleep_time)
-                        event_notifier.clear()
+                        event_notifier_wait(sleep_time)
+                        event_notifier_clear()
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
 
