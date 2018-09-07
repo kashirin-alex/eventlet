@@ -355,7 +355,7 @@ class BaseHub(object):
                 # prepare_events()
 
                 sleep_time = None
-                # when = self.clock()
+                when = self.clock()
                 while events:
                     # current evaluated event
                     exp, ev_details = events[0]
@@ -366,7 +366,7 @@ class BaseHub(object):
                             # remove called/cancelled timer
                             heappop(events)
                             continue
-                        due = exp - self.clock()  # when  #
+                        due = exp - when  # self.clock()
                         if due > 0:
                             sleep_time = exp + delay
                             break
