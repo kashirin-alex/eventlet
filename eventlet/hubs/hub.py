@@ -373,7 +373,7 @@ class BaseHub(object):
                         if listeners_events:
                             continue
                         # wait for fd signals
-                        wait(self.default_sleep())
+                    wait(self.default_sleep())
                     continue
 
                 # current evaluated timer
