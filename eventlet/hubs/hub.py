@@ -356,6 +356,10 @@ class BaseHub(object):
                 while closed:
                     close_one(closed.pop(-1))
 
+                # check for fds new signals
+                if readers or writers:  # not listeners_events and
+                    wait(0)
+                    
                 # Process one fd event at a time
                 if listeners_events:
                     process_listener_events(*listeners_events.popleft())
@@ -407,9 +411,6 @@ class BaseHub(object):
                 if self.debug_blocking:
                     self.block_detect_post()
 
-                # check for fds new signals
-                # if not listeners_events and (readers or writers):
-                #    wait(0)
             else:
                 del self.timers[:]
         finally:
