@@ -391,48 +391,6 @@ class BaseHub(object):
             self.stopping = False
         #
 
-    def prepare_events(self):
-        events = self.events
-        next_events = self.next_events
-        while next_events:
-            typ, event = next_events.pop(-1)
-            if typ == 0:
-                # timer
-                if not event.called:
-                    heappush(events, (event.scheduled_time, (typ, event)))
-            elif typ == 1:
-                # file_no event
-                ts, evtype_fileno = event
-                heappush(events, (ts, (typ, evtype_fileno)))
-        #
-
-    def fire_events(self, when):
-        events = self.events
-        while events:
-            # current evaluated event
-            exp, ev_details = events[0]
-            typ, event = ev_details
-
-            due_time = exp - when
-
-            if typ == 0:  # timer
-                if event.called:
-                    # remove called/cancelled timer
-                    heappop(events)
-                    continue
-                if due_time > 0:
-                    return
-
-                # remove evaluated event
-                heappop(events)
-                self.process_timer_event(event)
-
-            elif typ == 1:  # fd listener
-                # remove evaluated event
-                heappop(events)
-                self.process_listener_event(*event)
-        #
-
     def process_timer_event(self, timer):
         if self.debug_blocking:
             self.block_detect_pre()
@@ -506,9 +464,6 @@ class BaseHub(object):
             traceback.print_exception(*exc_info)
             sys.stderr.flush()
             clear_sys_exc_info()
-
-    def add_listener_event(self, ts, evtype_fileno):
-        self.listeners_events.append(evtype_fileno)
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds

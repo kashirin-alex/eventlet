@@ -99,6 +99,6 @@ class Hub(BaseHub):
             fileno = event.ident
             evfilt = event.filter
             if evfilt == self.FILTERS[self.READ]:
-                self.add_listener_event(ts, (self.READ, fileno))
+                self.listeners_events.append((self.READ, fileno))
             if evfilt == self.FILTERS[self.WRITE]:
-                self.add_listener_event(ts, (self.WRITE, fileno))
+                self.listeners_events.append((self.WRITE, fileno))
