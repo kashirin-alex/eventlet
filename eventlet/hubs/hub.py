@@ -362,39 +362,43 @@ class BaseHub(object):
                             heappush(events, (event.scheduled_time, (typ, (event,))))
                     elif typ == 1:
                         # file_no event
-                        ts, evtype, fileno = event
-                        heappush(events, (ts, (typ, (evtype, fileno))))
+                        ts, evtype_fileno = event
+                        heappush(events, (ts, (typ, evtype_fileno)))
 
                 if not events:
                     wait(self.default_sleep())
                     continue
 
                 # current evaluated event
-                exp, event = events[0]
+                exp, ev_details = events[0]
+                typ, event = ev_details
                 processor = None
-                if event[0] == 0:
+                if typ == 0:
                     # timer
-                    if event[1][0].called:
+                    if event[0].called:
                         # remove called/cancelled timer
                         heappop(events)
                         continue
+
+                    sleep_time = exp - self.clock()
+                    if sleep_time > 0:
+                        sleep_time += delay
+                        # wait for fd signals
+                        wait(sleep_time if sleep_time > 0 else 0)
+                        continue
+                    delay = (sleep_time + delay) / 2  # delay is negative value
+
                     processor = process_timer_event
-                elif event[0] == 1:
+
+                elif typ == 1:
+                    # fd listener
                     processor = process_listener_event
 
-                sleep_time = exp - self.clock()
-                if sleep_time > 0:
-                    sleep_time += delay
-                    # wait for fd signals
-                    wait(sleep_time if sleep_time > 0 else 0)
-                    continue
-                delay = (sleep_time + delay) / 2  # delay is negative value
-
-                # remove current evaluated event
+                # remove evaluated event
                 heappop(events)
 
                 # process event
-                processor(*event[1])
+                processor(*event)
 
             else:
                 del self.events[:]
@@ -407,6 +411,7 @@ class BaseHub(object):
     def process_timer_event(self, timer):
         if self.debug_blocking:
             self.block_detect_pre()
+
         try:
             timer()
         except SYSTEM_EXCEPTIONS:
@@ -415,6 +420,7 @@ class BaseHub(object):
             if self.debug_exceptions:
                 self.squelch_timer_exception(timer, sys.exc_info())
             clear_sys_exc_info()
+
         if self.debug_blocking:
             self.block_detect_post()
         #
@@ -444,20 +450,6 @@ class BaseHub(object):
         if self.debug_blocking:
             self.block_detect_post()
         #
-
-    def fire_timer(self, when):
-        # intermediate dummy place-holder
-        return
-
-    @staticmethod
-    def fire_timers(when):
-        # intermediate dummy place-holder
-        return
-
-    @staticmethod
-    def prepare_timers():
-        # intermediate dummy place-holder
-        return
 
     def abort(self, wait=False):
         """Stop the runloop. If run is executing, it will exit after
@@ -492,7 +484,7 @@ class BaseHub(object):
             clear_sys_exc_info()
 
     def add_listener_event(self, ts, evtype, fileno):
-        self.next_events.append((1, (ts, evtype, fileno)))
+        self.next_events.append((1, (ts, (evtype, fileno))))
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
