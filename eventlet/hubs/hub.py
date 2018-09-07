@@ -136,6 +136,7 @@ class BaseHub(object):
         self.clock = default_clock if clock is None else clock
         self.events = []
         self.event_notifier = orig_threading.Event()
+        self.heapq_lock = orig_threading.Lock()
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -331,8 +332,9 @@ class BaseHub(object):
         event_notifier = self.event_notifier
         while not self.stopping:
             wait(60)
-            if events and not event_notifier.is_set():
-                event_notifier.set()
+            with self.heapq_lock:
+                if events and not event_notifier.is_set():
+                    event_notifier.set()
         #
 
     def run(self, *a, **kw):
@@ -372,13 +374,16 @@ class BaseHub(object):
                         close_one(closed.pop(-1))
 
                     # current evaluated event
-                    exp, ev_details = events[0]
+
+                    with self.heapq_lock:
+                        exp, ev_details = events[0]
                     typ, event = ev_details
 
                     if typ == 0:  # timer
                         if event.called:
                             # remove called/cancelled timer
-                            heappop(events)
+                            with self.heapq_lock:
+                                heappop(events)
                             continue
                         due = exp - self.clock()
                         if due > 0:
@@ -387,7 +392,8 @@ class BaseHub(object):
                         delay = (due + delay) / 2  # delay is negative value
 
                     # remove evaluated event
-                    heappop(events)
+                    with self.heapq_lock:
+                        heappop(events)
 
                     # process event
                     processors[typ](*event)
@@ -398,7 +404,8 @@ class BaseHub(object):
 
                 # wait for events
                 if events:
-                    sleep_time = events[0][0] - self.clock() + delay
+                    with self.heapq_lock:
+                        sleep_time = events[0][0] - self.clock() + delay
                     if sleep_time < 0:
                         sleep_time = 0
                 else:
@@ -410,7 +417,8 @@ class BaseHub(object):
                 # wait(sleep_time)
 
             else:
-                del self.events[:]
+                with self.heapq_lock:
+                    del self.events[:]
         finally:
             self.running = False
             self.stopping = False
@@ -491,12 +499,14 @@ class BaseHub(object):
             clear_sys_exc_info()
 
     def add_listener_event(self, ts, evtype_fileno):
-        heappush(self.events, (ts, (1, evtype_fileno)))
+        with self.heapq_lock:
+            heappush(self.events, (ts, (1, evtype_fileno)))
         # self.next_events.append((1, (ts, evtype_fileno)))
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        heappush(self.events, (timer.scheduled_time, (0, timer)))
+        with self.heapq_lock:
+            heappush(self.events, (timer.scheduled_time, (0, timer)))
         # self.next_events.append((0, timer))
         return timer
 
@@ -530,7 +540,7 @@ class BaseHub(object):
         return self.listeners[WRITE].values()
 
     def get_timers_count(self):
-        return self.events.__len__()+self.next_events.__len__()
+        return self.events.__len__()
 
     def get_listeners_count(self):
         return self.listeners[READ].__len__(),  self.listeners[WRITE].__len__()
