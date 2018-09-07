@@ -349,10 +349,10 @@ class BaseHub(object):
             processors = (self.process_timer_event, self.process_listener_event)
             events = self.events
             events_next = self.events_next
+            prepare_events = self.prepare_events
 
             closed = self.closed
             close_one = self.close_one
-            # wait = self.wait
             # writers = self.listeners[WRITE]
             # readers = self.listeners[READ]
             delay = 0
@@ -371,17 +371,9 @@ class BaseHub(object):
                     while closed:
                         close_one(closed.pop(-1))
 
-                    # prepare next events
-                    while events_next:
-                        typ, event = events_next.pop(-1)
-                        if typ == 0:
-                            # timer
-                            if not event.called:
-                                heappush(events, (event.scheduled_time, (typ, event)))
-                        elif typ == 1:
-                            # file_no event
-                            ts, evtype_fileno = event
-                            heappush(events, (ts, (typ, evtype_fileno)))
+                    prepare_events()
+                    if not events:
+                        break
 
                     # current evaluated event
                     exp, ev_details = events[0]
@@ -394,6 +386,7 @@ class BaseHub(object):
                             continue
                         due = exp - self.clock()
                         if due > 0:
+                            prepare_events()
                             break
                         event = (event, )
                         delay = (due + delay) / 2  # delay is negative value
@@ -469,6 +462,21 @@ class BaseHub(object):
 
         if self.debug_blocking:
             self.block_detect_post()
+        #
+
+    def prepare_events(self):
+        events = self.events
+        events_next = self.events_next
+        while events_next:
+            typ, event = events_next.pop(-1)
+            if typ == 0:
+                # timer
+                if not event.called:
+                    heappush(events, (event.scheduled_time, (typ, event)))
+            elif typ == 1:
+                # file_no event
+                ts, evtype_fileno = event
+                heappush(events, (ts, (typ, evtype_fileno)))
         #
 
     def abort(self, wait=False):
