@@ -264,7 +264,7 @@ class BaseHub(object):
             listeners += self.secondaries[evtype].get(fileno, [])
 
         for listener in listeners:
-            self.process_listener_events(listener.evtype, listener.fileno)
+            self.process_listener_event(listener.evtype, listener.fileno)
 
     @staticmethod
     def close_one(listener):
@@ -390,7 +390,7 @@ class BaseHub(object):
 
             else:
                 del self.events[:]
-                del self.next_events[:]
+                # del self.next_events[:]
         finally:
             self.running = False
             self.stopping = False
