@@ -373,26 +373,28 @@ class BaseHub(object):
                 exp, ev_details = events[0]
                 typ, event = ev_details
                 processor = None
+
+                sleep_time = exp - self.clock()
+
                 if typ == 0:
                     # timer
                     if event[0].called:
                         # remove called/cancelled timer
                         heappop(events)
                         continue
-
-                    sleep_time = exp - self.clock()
                     if sleep_time > 0:
                         sleep_time += delay
                         # wait for fd signals
                         wait(sleep_time if sleep_time > 0 else 0)
                         continue
-                    delay = (sleep_time + delay) / 2  # delay is negative value
 
                     processor = process_timer_event
 
                 elif typ == 1:
                     # fd listener
                     processor = process_listener_event
+
+                delay = (sleep_time + delay) / 2  # delay is negative value
 
                 # remove evaluated event
                 heappop(events)
@@ -411,7 +413,6 @@ class BaseHub(object):
     def process_timer_event(self, timer):
         if self.debug_blocking:
             self.block_detect_pre()
-
         try:
             timer()
         except SYSTEM_EXCEPTIONS:
