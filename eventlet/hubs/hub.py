@@ -385,7 +385,6 @@ class BaseHub(object):
                 if not timers:
                     if not listeners_events:
                         # wait for fd signals
-                        event_notifier.clear()
                         event_notifier.wait(self.default_sleep())
                         event_notifier.clear()
                     continue
@@ -399,14 +398,11 @@ class BaseHub(object):
 
                 sleep_time = exp - self.clock()
                 if sleep_time > 0:
-                    if listeners_events:
-                        continue
                     sleep_time += delay
                     if sleep_time <= 0:
                         continue
                     if not listeners_events:
                         # wait for fd signals
-                        event_notifier.clear()
                         event_notifier.wait(sleep_time)
                         event_notifier.clear()
                     continue
