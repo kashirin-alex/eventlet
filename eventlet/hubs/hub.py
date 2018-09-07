@@ -367,6 +367,7 @@ class BaseHub(object):
             event_notifier = self.event_notifier
             event_notifier.set()
             heapq_lock = self.heapq_lock
+
             while not self.stopping:
 
                 # when = self.clock()
@@ -415,6 +416,7 @@ class BaseHub(object):
                     sleep_time = self.default_sleep()
 
                 event_notifier.wait(sleep_time)
+                event_notifier.clear()
 
                 #
                 # wait(sleep_time)
