@@ -366,11 +366,12 @@ class BaseHub(object):
                             # remove called/cancelled timer
                             heappop(events)
                             continue
-                        if exp - when > 0:
+                        due = exp - when
+                        if due > 0:
                             sleep_time = exp
                             break
                         event = (event, )
-                        delay = (exp - when + delay) / 2  # delay is negative value
+                        delay = (due + delay) / 2  # delay is negative value
 
                     # remove evaluated event
                     heappop(events)
