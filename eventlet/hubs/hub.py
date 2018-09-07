@@ -103,26 +103,6 @@ class DebugListener(FdListener):
     __str__ = __repr__
 
 
-class FdListeners(object):
-    READ = 'read'
-    WRITE = 'write'
-    __slots__ = [READ, WRITE]
-    types = __slots__
-
-    def __init__(self):
-        self.read = {}
-        self.write = {}
-        #
-
-    def __getitem__(self, ev_type):
-        return getattr(self, ev_type)
-        #
-
-    def has_fileno(self, fileno):
-        return fileno in self.read or fileno in self.write
-        #
-
-
 def alarm_handler(signum, frame):
     import inspect
     raise RuntimeError("Blocking detector ALARMED at" + str(inspect.getframeinfo(frame)))
@@ -155,7 +135,6 @@ class BaseHub(object):
 
         self.clock = default_clock if clock is None else clock
         self.timers = []
-        self.next_timers = []
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -363,7 +342,6 @@ class BaseHub(object):
             listeners_events = self.listeners_events
             process_listener_events = self.process_listener_events
             timers = self.timers
-            next_timers = self.next_timers
 
             wait = self.wait
             close_one = self.close_one
@@ -379,12 +357,6 @@ class BaseHub(object):
                 # Process one fd event at a time
                 if listeners_events:
                     process_listener_events(*listeners_events.popleft())
-
-                # Assign new timers
-                while next_timers:
-                    timer = next_timers.pop(-1)
-                    if not timer.called:
-                        heappush(timers, (timer.scheduled_time, timer))
 
                 if not timers:
                     if not listeners_events:
@@ -504,7 +476,7 @@ class BaseHub(object):
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        self.next_timers.append(timer)
+        heappush(self.timers, (timer.scheduled_time, timer))
         return timer
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
@@ -537,7 +509,7 @@ class BaseHub(object):
         return self.listeners[WRITE].values()
 
     def get_timers_count(self):
-        return self.timers.__len__()+self.next_timers.__len__()
+        return self.timers.__len__()
 
     def get_listeners_count(self):
         return self.listeners[READ].__len__(),  self.listeners[WRITE].__len__()
