@@ -4,7 +4,6 @@ import os
 import sys
 import traceback
 import signal
-from collections import deque
 
 arm_alarm = None
 if hasattr(signal, 'setitimer'):
@@ -24,6 +23,8 @@ else:
 
 import eventlet
 from eventlet.support import greenlets as greenlet, clear_sys_exc_info
+
+orig_threading = eventlet.patcher.original('threading')
 
 if os.environ.get('EVENTLET_CLOCK'):
     mod = os.environ.get('EVENTLET_CLOCK').rsplit('.', 1)
@@ -134,6 +135,7 @@ class BaseHub(object):
 
         self.clock = default_clock if clock is None else clock
         self.events = []
+        self.event_notifier = orig_threading.Event()
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -323,6 +325,16 @@ class BaseHub(object):
     def default_sleep():
         return 60.0
 
+    def waiting_thread(self):
+        wait = self.wait
+        events = self.events
+        event_notifier = self.event_notifier
+        while self.stopping:
+            wait(60)
+            if events and not event_notifier.is_set():
+                event_notifier.set()
+        #
+
     def run(self, *a, **kw):
         """Run the runloop until abort is called.
         """
@@ -340,10 +352,14 @@ class BaseHub(object):
 
             closed = self.closed
             close_one = self.close_one
-            wait = self.wait
-            writers = self.listeners[WRITE]
-            readers = self.listeners[READ]
+            # wait = self.wait
+            # writers = self.listeners[WRITE]
+            # readers = self.listeners[READ]
             delay = 0
+
+            events_waiter = orig_threading.Thread(target=self.waiting_thread)
+            events_waiter.start()
+            event_notifier = self.event_notifier
 
             while not self.stopping:
 
@@ -376,18 +392,20 @@ class BaseHub(object):
                     processors[typ](*event)
 
                     # check for events
-                    if readers or writers:
-                        wait(0)
+                    # if readers or writers:
+                    #    wait(0)
 
                 # wait for events
-                if events:
-                    sleep_time = events[0][0] - self.clock() + delay
-                    if sleep_time < 0:
-                        sleep_time = 0
-                else:
-                    sleep_time = self.default_sleep()
+                event_notifier.wait(60)
 
-                wait(sleep_time)
+                # if events:
+                #    sleep_time = events[0][0] - self.clock() + delay
+                #    if sleep_time < 0:
+                #        sleep_time = 0
+                # else:
+                #    sleep_time = self.default_sleep()
+                #
+                # wait(sleep_time)
 
             else:
                 del self.events[:]
