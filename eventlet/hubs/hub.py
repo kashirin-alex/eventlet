@@ -354,16 +354,16 @@ class BaseHub(object):
                     close_one(closed.pop(-1))
 
                 # Assign new Events
-                # while next_events:
-                #    typ, event = next_events.pop(-1)
-                #    if typ == 0:
-                #        # timer
-                #        if not event.called:
-                #            heappush(events, (event.scheduled_time, (typ, event)))
-                #    elif typ == 1:
-                #        # file_no event
-                #        ts, evtype_fileno = event
-                #        heappush(events, (ts, (typ, evtype_fileno)))
+                while next_events:
+                    typ, event = next_events.pop(-1)
+                    if typ == 0:
+                        # timer
+                        if not event.called:
+                            heappush(events, (event.scheduled_time, (typ, event)))
+                    elif typ == 1:
+                        # file_no event
+                        ts, evtype_fileno = event
+                        heappush(events, (ts, (typ, evtype_fileno)))
 
                 if not events:
                     wait(self.default_sleep())
@@ -483,13 +483,13 @@ class BaseHub(object):
             clear_sys_exc_info()
 
     def add_listener_event(self, ts, evtype_fileno):
-        heappush(self.events, (ts, (1, evtype_fileno)))
-        # self.next_events.append((1, (ts, evtype_fileno)))
+        # heappush(self.events, (ts, (1, evtype_fileno)))
+        self.next_events.append((1, (ts, evtype_fileno)))
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        heappush(self.events, (timer.scheduled_time, (0, timer)))
-        # self.next_events.append((0, timer))
+        # heappush(self.events, (timer.scheduled_time, (0, timer)))
+        self.next_events.append((0, timer))
         return timer
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
