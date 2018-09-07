@@ -93,7 +93,6 @@ class Hub(BaseHub):
             return
 
         result = self._control([], self.MAX_EVENTS, seconds)
-
         for event in result:
             fileno = event.ident
             evfilt = event.filter

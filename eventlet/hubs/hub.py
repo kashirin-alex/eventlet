@@ -353,8 +353,8 @@ class BaseHub(object):
             timers = self.timers
             next_timers = self.next_timers
 
+            listeners = self.listeners
             listeners_events = self.listeners_events
-            process_listener_event = self.process_listener_event
             closed = self.closed
             close_one = self.close_one
 
@@ -366,6 +366,7 @@ class BaseHub(object):
             event_notifier.set()
 
             while not self.stopping:
+                debug_blocking = self.debug_blocking
 
                 # Ditch all closed fds first.
                 while closed:
@@ -373,8 +374,29 @@ class BaseHub(object):
 
                 # Process all fds events
                 while listeners_events:
-
-                    process_listener_event(*listeners_events.popleft())
+                    # call on fd cb
+                    evtype, fileno = listeners_events.popleft()
+                    if debug_blocking:
+                        self.block_detect_pre()
+                    try:
+                        if evtype is not None:
+                            l = listeners[evtype].get(fileno)
+                            if l is not None:
+                                l.cb(fileno)
+                        else:
+                            l = listeners[READ].get(fileno)
+                            if l is not None:
+                                l.cb(fileno)
+                            l = listeners[WRITE].get(fileno)
+                            if l is not None:
+                                l.cb(fileno)
+                    except SYSTEM_EXCEPTIONS:
+                        raise
+                    except:
+                        self.squelch_exception(fileno, sys.exc_info())
+                        clear_sys_exc_info()
+                    if debug_blocking:
+                        self.block_detect_post()
 
                 # Assign new timers
                 while next_timers:
@@ -412,7 +434,7 @@ class BaseHub(object):
                 heappop(timers)
 
                 # call on timer
-                if self.debug_blocking:
+                if debug_blocking:
                     self.block_detect_pre()
                 try:
                     timer()
@@ -422,7 +444,7 @@ class BaseHub(object):
                     if self.debug_exceptions:
                         self.squelch_timer_exception(timer, sys.exc_info())
                     clear_sys_exc_info()
-                if self.debug_blocking:
+                if debug_blocking:
                     self.block_detect_post()
 
             else:
@@ -432,32 +454,6 @@ class BaseHub(object):
         finally:
             self.running = False
             self.stopping = False
-        #
-
-    def process_listener_event(self, evtype, fileno):
-        if self.debug_blocking:
-            self.block_detect_pre()
-
-        try:
-            if evtype is not None:
-                l = self.listeners[evtype].get(fileno)
-                if l is not None:
-                    l.cb(fileno)
-            else:
-                l = self.listeners[READ].get(fileno)
-                if l is not None:
-                    l.cb(fileno)
-                l = self.listeners[WRITE].get(fileno)
-                if l is not None:
-                    l.cb(fileno)
-        except SYSTEM_EXCEPTIONS:
-            raise
-        except:
-            self.squelch_exception(fileno, sys.exc_info())
-            clear_sys_exc_info()
-
-        if self.debug_blocking:
-            self.block_detect_post()
         #
 
     def abort(self, wait=False):
