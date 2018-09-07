@@ -134,7 +134,6 @@ class BaseHub(object):
 
         self.clock = default_clock if clock is None else clock
         self.events = []
-        self.next_events = []
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -339,7 +338,6 @@ class BaseHub(object):
             closed = self.closed
             process_listener_event = self.process_listener_event
             process_timer_event = self.process_timer_event
-            next_events = self.next_events
             events = self.events
 
             wait = self.wait
@@ -353,18 +351,6 @@ class BaseHub(object):
                 while closed:
                     close_one(closed.pop(-1))
 
-                # Assign new Events
-                while next_events:
-                    typ, event = next_events.pop(-1)
-                    if typ == 0:
-                        # timer
-                        if not event.called:
-                            heappush(events, (event.scheduled_time, (typ, (event,))))
-                    elif typ == 1:
-                        # file_no event
-                        ts, evtype_fileno = event
-                        heappush(events, (ts, (typ, evtype_fileno)))
-
                 if not events:
                     wait(self.default_sleep())
                     continue
@@ -372,39 +358,35 @@ class BaseHub(object):
                 # current evaluated event
                 exp, ev_details = events[0]
                 typ, event = ev_details
-                processor = None
-
-                sleep_time = exp - self.clock()
 
                 if typ == 0:
                     # timer
-                    if event[0].called:
+                    if event.called:
                         # remove called/cancelled timer
                         heappop(events)
                         continue
+                    sleep_time = exp - self.clock()
                     if sleep_time > 0:
                         sleep_time += delay
                         # wait for fd signals
                         wait(sleep_time if sleep_time > 0 else 0)
                         continue
-
-                    processor = process_timer_event
+                    process_timer_event(event)
 
                 elif typ == 1:
                     # fd listener
-                    processor = process_listener_event
-
+                    sleep_time = exp - self.clock()
+                    process_listener_event(*event)
+                else:
+                    sleep_time = 0
                 delay = (sleep_time + delay) / 2  # delay is negative value
 
                 # remove evaluated event
                 heappop(events)
 
-                # process event
-                processor(*event)
 
             else:
                 del self.events[:]
-                del self.next_events[:]
         finally:
             self.running = False
             self.stopping = False
@@ -485,11 +467,11 @@ class BaseHub(object):
             clear_sys_exc_info()
 
     def add_listener_event(self, ts, evtype, fileno):
-        self.next_events.append((1, (ts, (evtype, fileno))))
+        heappush(self.events, (ts, (1, (evtype, fileno))))
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        self.next_events.append((0, timer))
+        heappush(self.events, (timer.scheduled_time, (0, timer)))
         return timer
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
@@ -522,7 +504,7 @@ class BaseHub(object):
         return self.listeners[WRITE].values()
 
     def get_timers_count(self):
-        return self.events.__len__()+self.next_events.__len__()
+        return self.events.__len__()
 
     def get_listeners_count(self):
         return self.listeners[READ].__len__(),  self.listeners[WRITE].__len__()
