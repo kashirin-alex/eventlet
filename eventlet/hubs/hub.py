@@ -386,7 +386,8 @@ class BaseHub(object):
                             continue
                         due = exp - self.clock()
                         if due > 0:
-                            prepare_events()
+                            if events_next:
+                                prepare_events()
                             break
                         event = (event, )
                         delay = (due + delay) / 2  # delay is negative value
