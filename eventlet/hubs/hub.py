@@ -328,15 +328,9 @@ class BaseHub(object):
 
     def waiting_thread(self):
         wait = self.wait
-        events = self.events
         event_notifier = self.event_notifier
-        # heapq_lock = self.heapq_lock
-
         while not self.stopping:
-            ts = self.clock()
-            rs = wait(60.0)
-            print ('waiting_thread, waited:'+str(self.clock()-ts))
-            if rs:
+            if wait(60.0):
                 event_notifier.set()
         #
 
