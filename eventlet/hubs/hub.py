@@ -131,10 +131,10 @@ class BaseHub(object):
         self.secondaries = ({}, {})
         self.closed = []
         self.lclass = FdListener
+        self.listeners_events = deque()
 
         self.clock = default_clock if clock is None else clock
-        self.events = []
-        self.next_events = []
+        self.timers = []
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -336,12 +336,15 @@ class BaseHub(object):
             self.running = True
             self.stopping = False
 
-            closed = self.closed
-            processors = (self.process_timer_event, self.process_listener_event)
-            events = self.events
+            timers = self.timers
+            process_timer_event = self.process_timer_event
 
-            wait = self.wait
+            closed = self.closed
             close_one = self.close_one
+            wait = self.wait
+            listeners_events = self.listeners_events
+            process_listener_event = self.process_listener_event
+
             delay = 0
 
             while not self.stopping:
@@ -350,34 +353,24 @@ class BaseHub(object):
                 while closed:
                     close_one(closed.pop(-1))
 
-                # prepare_events()
-                # fire_events(self.clock())
-                # prepare_events()
-
                 sleep_time = None
                 when = self.clock()
-                while events:
-                    # current evaluated event
-                    exp, ev_details = events[0]
-                    typ, event = ev_details
-
-                    if typ == 0:  # timer
-                        if event.called:
-                            # remove called/cancelled timer
-                            heappop(events)
-                            continue
-                        due = exp - when  # self.clock()
-                        if due > 0:
-                            sleep_time = exp + delay
-                            break
-                        event = (event, )
-                        delay = (due + delay) / 2  # delay is negative value
-
+                while timers:
+                    # current evaluated
+                    exp, timer = timers[0]
+                    if timer.called:
+                        # remove called/cancelled timer
+                        heappop(timers)
+                        continue
+                    due = exp - when  # self.clock()
+                    if due > 0:
+                        sleep_time = exp + delay
+                        break
+                    delay = (due + delay) / 2  # delay is negative value
                     # remove evaluated event
-                    heappop(events)
-
-                    # process event
-                    processors[typ](*event)
+                    heappop(timers)
+                    # process timer
+                    process_timer_event(timer)
 
                 if sleep_time is not None:
                     sleep_time = sleep_time - self.clock()
@@ -387,10 +380,12 @@ class BaseHub(object):
                     sleep_time = self.default_sleep()
 
                 wait(sleep_time)
+                # Process all fds events
+                while listeners_events:
+                    process_listener_event(*listeners_events.popleft())
 
             else:
-                del self.events[:]
-                # del self.next_events[:]
+                del self.timers[:]
         finally:
             self.running = False
             self.stopping = False
@@ -513,13 +508,11 @@ class BaseHub(object):
             clear_sys_exc_info()
 
     def add_listener_event(self, ts, evtype_fileno):
-        heappush(self.events, (ts, (1, evtype_fileno)))
-        # self.next_events.append((1, (ts, evtype_fileno)))
+        self.listeners_events.append(evtype_fileno)
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        heappush(self.events, (timer.scheduled_time, (0, timer)))
-        # self.next_events.append((0, timer))
+        heappush(self.timers, (timer.scheduled_time, timer))
         return timer
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
@@ -552,13 +545,13 @@ class BaseHub(object):
         return self.listeners[WRITE].values()
 
     def get_timers_count(self):
-        return self.events.__len__()+self.next_events.__len__()
+        return self.timers.__len__()
 
     def get_listeners_count(self):
         return self.listeners[READ].__len__(),  self.listeners[WRITE].__len__()
 
     def get_listeners_events_count(self):
-        return 0
+        return self.listeners_events.__len__()
 
     def set_debug_listeners(self, value):
         self.lclass = DebugListener if value else FdListener
