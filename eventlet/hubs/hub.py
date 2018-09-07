@@ -337,8 +337,7 @@ class BaseHub(object):
             self.stopping = False
 
             closed = self.closed
-            process_timer_event = self.process_timer_event
-            process_listener_event = self.process_listener_event
+            processors = (self.process_timer_event, self.process_listener_event)
             events = self.events
 
             wait = self.wait
@@ -355,33 +354,32 @@ class BaseHub(object):
                 # fire_events(self.clock())
                 # prepare_events()
 
+                sleep_time = None
                 when = self.clock()
                 while events:
                     # current evaluated event
                     exp, ev_details = events[0]
                     typ, event = ev_details
-                    due_time = exp - when
 
                     if typ == 0:  # timer
                         if event.called:
                             # remove called/cancelled timer
                             heappop(events)
                             continue
-                        if due_time > 0:
+                        if exp - when > 0:
+                            sleep_time = exp
                             break
-                        delay = (due_time + delay) / 2  # delay is negative value
+                        event = (event, )
+                        delay = (exp - when + delay) / 2  # delay is negative value
 
-                        # remove evaluated event
-                        heappop(events)
-                        process_timer_event(event)
+                    # remove evaluated event
+                    heappop(events)
 
-                    elif typ == 1:  # fd listener
-                        # remove evaluated event
-                        heappop(events)
-                        process_listener_event(*event)
+                    # process event
+                    processors[typ](*event)
 
-                if events:
-                    sleep_time = events[0][0] - self.clock() + delay
+                if sleep_time is not None:
+                    sleep_time = sleep_time - self.clock() + delay
                     if sleep_time < 0:
                         sleep_time = 0
                 else:
