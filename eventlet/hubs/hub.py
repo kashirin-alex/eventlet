@@ -329,7 +329,7 @@ class BaseHub(object):
         wait = self.wait
         events = self.events
         event_notifier = self.event_notifier
-        while self.stopping:
+        while not self.stopping:
             wait(60)
             if events and not event_notifier.is_set():
                 event_notifier.set()
@@ -360,6 +360,7 @@ class BaseHub(object):
             events_waiter = orig_threading.Thread(target=self.waiting_thread)
             events_waiter.start()
             event_notifier = self.event_notifier
+            event_notifier.set()
 
             while not self.stopping:
 
