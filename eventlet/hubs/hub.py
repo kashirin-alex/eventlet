@@ -395,6 +395,9 @@ class BaseHub(object):
                     heappop(events)
                     process_listener_event(*event)
 
+                if not events:
+                    wait(0)
+
                 # delay = (due_time + delay) / 2  # delay is negative value
 
             else:
