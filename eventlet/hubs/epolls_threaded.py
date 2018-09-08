@@ -126,6 +126,7 @@ WRITE = 1
 EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT
+POLLNVAL = select.POLLNVAL
 
 noop = FdListener(READ, 0, lambda x: None, lambda x: None, None)
 DEFAULT_SLEEP = 60.0
@@ -392,40 +393,43 @@ class Hub(object):
         #
 
     def waiting_thread(self):
-        event_notifier = self.event_notifier
+
         poll = self.poll.poll
-        add_listener_event = self.add_listener_event
+        add_events = self.listeners_events.append
+
+        no_one_waiting = self.event_notifier.is_set
+        notify = self.event_notifier.set
+
         while not self.stopping:
             presult = None
             try:
                 presult = poll(DEFAULT_SLEEP)
             except (IOError, select.error) as e:
-                if support.get_errno(e) == errno.EINTR:
-                    return
-                print (e)
-                raise
+                if support.get_errno(e) != errno.EINTR:
+                    raise
             except SYSTEM_EXCEPTIONS:
                 raise
-            except Exception as e:
-                print (e)
+            except:
+                pass
 
-            if presult is None:
+            if not presult:
                 ev_sleep(3)
+                continue
 
             for fileno, event in presult:
-                if event & select.POLLNVAL:
+                if event & POLLNVAL:
                     self.remove_descriptor(fileno)
                     continue
                 if event & EXC_MASK:
-                    add_listener_event(None, fileno)
+                    add_events((None, fileno))
                     continue
                 if event & READ_MASK:
-                    add_listener_event(READ, fileno)
+                    add_events((READ, fileno))
                 if event & WRITE_MASK:
-                    add_listener_event(WRITE, fileno)
+                    add_events((WRITE, fileno))
 
-            if not event_notifier.is_set():
-                event_notifier.set()
+            if not no_one_waiting():
+                notify()
         #
 
     def run(self, *a, **kw):
