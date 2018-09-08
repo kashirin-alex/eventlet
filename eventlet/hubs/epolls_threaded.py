@@ -315,6 +315,8 @@ class Hub(object):
                 presult = poll(DEFAULT_SLEEP)
             except SYSTEM_EXCEPTIONS:
                 raise
+            except:
+                presult = None
 
             if not presult:
                 ev_sleep(3)
