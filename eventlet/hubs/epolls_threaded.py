@@ -46,6 +46,9 @@ class Hub(object):
 
     def __init__(self, clock=None):
         self.listeners = ({}, {})
+        self.listeners_r = self.listeners[READ]
+        self.listeners_w = self.listeners[WRITE]
+
         self.secondaries = ({}, {})
         self.closed = []
         self.lclass = FdListener
@@ -103,7 +106,7 @@ class Hub(object):
         close operations from accidentally shutting down the wrong OS thread.
         """
 
-        new = not (fileno in self.listeners[READ] or fileno in self.listeners[WRITE])
+        new = not (fileno in self.listeners_r or fileno in self.listeners_w)
 
         listener = self.lclass(evtype, fileno, cb, tb, mark_as_closed)
         bucket = self.listeners[evtype]
@@ -135,9 +138,9 @@ class Hub(object):
 
     def register(self, fileno, new=False):
         mask = 0
-        if self.listeners[READ].get(fileno):
+        if fileno in self.listeners_r:
             mask |= READ_MASK | EXC_MASK
-        if self.listeners[WRITE].get(fileno):
+        if fileno in self.listeners_w:
             mask |= WRITE_MASK | EXC_MASK
         try:
             if mask:
@@ -531,16 +534,16 @@ class Hub(object):
     # for debugging:
 
     def get_readers(self):
-        return self.listeners[READ].values()
+        return self.listeners_r.values()
 
     def get_writers(self):
-        return self.listeners[WRITE].values()
+        return self.listeners_w.values()
 
     def get_timers_count(self):
         return self.timers.__len__()+self.next_timers.__len__()
 
     def get_listeners_count(self):
-        return self.listeners[READ].__len__(),  self.listeners[WRITE].__len__()
+        return self.listeners_r.__len__(),  self.listeners_w.__len__()
 
     def get_listeners_events_count(self):
         return self.listeners_events.__len__()
