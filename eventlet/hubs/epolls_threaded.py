@@ -442,13 +442,13 @@ class Hub(object):
                     if next_timers:
                         ev_sleep(0)
                         continue
-                    sleep_time += delay
-                    if sleep_time < 0:
-                        sleep_time = 0
                     #    delay = 0  # preserving delay can cause a close loop on a long delay
                     #    continue
                     if not listeners_events:
                         # wait for fd signals
+                        sleep_time += delay
+                        if sleep_time < 0:
+                            sleep_time = 0
                         event_notifier_wait(sleep_time)
                         event_notifier_clear()
                     continue
