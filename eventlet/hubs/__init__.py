@@ -132,8 +132,8 @@ def trampoline(fd, read=None, write=None, timeout=None,
     hub = active_hub.inst
     current = greenlet.getcurrent()
     assert hub.greenlet is not current, 'do not call blocking functions from the mainloop'
-    assert not (
-        read and write), 'not allowed to trampoline for reading and writing'
+    assert not (read and write), 'not allowed to trampoline for reading and writing'
+
     try:
         fileno = fd.fileno()
     except AttributeError:
