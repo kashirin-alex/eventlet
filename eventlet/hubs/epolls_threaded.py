@@ -39,8 +39,10 @@ noop = FdListener(READ, 0, lambda x: None, lambda x: None, None)
 
 
 class Hub(object):
-    """ Base hub class for easing the implementation of subclasses that are
-    specific to a particular underlying event architecture. """
+    """ epolls Hub with Threaded Poll Waiter. """
+
+    READ = READ
+    WRITE = WRITE
 
     def __init__(self, clock=None):
         self.listeners = ({}, {})
