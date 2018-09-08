@@ -347,16 +347,21 @@ class Hub(object):
             self.running = True
             self.stopping = False
 
+            clock = self.clock
+            delay = 0
+
             timers = self.timers
             next_timers = self.next_timers
+            pop_next_timer = self.next_timers.pop
 
             listeners = self.listeners
+            get_writer = listeners[WRITE].get
+            get_reader = listeners[READ].get
             listeners_events = self.listeners_events
             listener_event_next = self.listeners_events.popleft
             closed = self.closed
+            pop_closed = self.closed.pop
             close_one = self.close_one
-
-            delay = 0
 
             events_waiter = orig_threading.Thread(target=self.waiting_thread)
             events_waiter.start()
@@ -370,7 +375,7 @@ class Hub(object):
 
                 # Ditch all closed fds first.
                 while closed:
-                    close_one(closed.pop(-1))
+                    close_one(pop_closed(-1))
 
                 # Process all fds events
                 while listeners_events:
@@ -379,15 +384,21 @@ class Hub(object):
                     if debug_blocking:
                         self.block_detect_pre()
                     try:
-                        if evtype is not None:
-                            l = listeners[evtype].get(fileno)
+                        if evtype is READ:
+                            l = get_reader(fileno)
                             if l is not None:
                                 l.cb(fileno)
                             continue
-                        l = listeners[READ].get(fileno)
+                        if evtype is WRITE:
+                            l = get_writer(fileno)
+                            if l is not None:
+                                l.cb(fileno)
+                            continue
+
+                        l = get_writer(fileno)
                         if l is not None:
                             l.cb(fileno)
-                        l = listeners[WRITE].get(fileno)
+                        l = get_reader(fileno)
                         if l is not None:
                             l.cb(fileno)
                     except SYSTEM_EXCEPTIONS:
@@ -400,7 +411,7 @@ class Hub(object):
 
                 # Assign new timers
                 while next_timers:
-                    timer = next_timers.pop(-1)
+                    timer = pop_next_timer(-1)
                     if not timer.called:
                         heappush(timers, (timer.scheduled_time, timer))
 
@@ -418,7 +429,7 @@ class Hub(object):
                     heappop(timers)
                     continue
 
-                sleep_time = exp - self.clock()
+                sleep_time = exp - clock()
                 if sleep_time > 0:
                     sleep_time += delay
                     if sleep_time <= 0:
