@@ -352,6 +352,7 @@ class Hub(object):
 
             listeners = self.listeners
             listeners_events = self.listeners_events
+            listener_event_next = self.listeners_events.popleft
             closed = self.closed
             close_one = self.close_one
 
@@ -374,7 +375,7 @@ class Hub(object):
                 # Process all fds events
                 while listeners_events:
                     # call on fd cb
-                    evtype, fileno = listeners_events.popleft()
+                    evtype, fileno = listener_event_next()
                     if debug_blocking:
                         self.block_detect_pre()
                     try:
