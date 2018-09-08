@@ -314,13 +314,8 @@ class Hub(object):
             presult = None
             try:
                 presult = poll(DEFAULT_SLEEP)
-            except (IOError, SELECT_ERR) as e:
-                if support.get_errno(e) != errno.EINTR:
-                    raise
             except SYSTEM_EXCEPTIONS:
                 raise
-            except:
-                pass
 
             if not presult:
                 ev_sleep(3)
@@ -385,8 +380,6 @@ class Hub(object):
                 while closed:
                     close_one(pop_closed(-1))
 
-                if listeners_events:
-                    print ("yes events: " + str(len(listeners_events)))
                 # Process all fds events
                 while listeners_events:
                     # call on fd cb
@@ -448,12 +441,10 @@ class Hub(object):
                         ev_sleep(0)
                         continue
                     if not listeners_events:
-                        print ("no  events: "+str(sleep_time))
                         # wait for fd signals
                         event_notifier_wait(sleep_time)
                         event_notifier_clear()
                     else:
-                        print ("yes events: "+str(sleep_time))
                         ev_sleep(0)
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
