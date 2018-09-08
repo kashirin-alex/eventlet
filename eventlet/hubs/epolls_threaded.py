@@ -311,7 +311,6 @@ class Hub(object):
         notify = self.event_notifier.set
 
         while not self.stopping:
-            presult = None
             try:
                 presult = poll(DEFAULT_SLEEP)
             except SYSTEM_EXCEPTIONS:
