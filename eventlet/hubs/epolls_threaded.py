@@ -439,8 +439,9 @@ class Hub(object):
 
                 sleep_time = exp - clock()
                 if sleep_time > 0:
-                    # sleep_time += delay
-                    # if sleep_time <= 0:
+                    sleep_time += delay
+                    if sleep_time < 0:
+                        sleep_time = 0
                     #    delay = 0  # preserving delay can cause a close loop on a long delay
                     #    continue
                     if not listeners_events:  # and not next_timers:
@@ -448,7 +449,7 @@ class Hub(object):
                         event_notifier_wait(sleep_time)
                         event_notifier_clear()
                     continue
-                # delay = (sleep_time+delay)/2  # delay is negative value
+                delay = (sleep_time+delay)/2  # delay is negative value
 
                 # remove evaluated timer
                 heappop(timers)
