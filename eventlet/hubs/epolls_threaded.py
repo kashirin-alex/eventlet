@@ -28,6 +28,7 @@ from eventlet import support
 
 orig_threading = eventlet.patcher.original('threading')
 select = eventlet.patcher.original('select')
+ev_sleep = eventlet.patcher.original('time').sleep
 
 
 def is_available():
@@ -128,6 +129,7 @@ WRITE_MASK = select.POLLOUT
 
 noop = FdListener(READ, 0, lambda x: None, lambda x: None, None)
 DEFAULT_SLEEP = 60.0
+
 
 class Hub(object):
     """ Base hub class for easing the implementation of subclasses that are
@@ -394,20 +396,22 @@ class Hub(object):
         poll = self.poll.poll
         add_listener_event = self.add_listener_event
         while not self.stopping:
-
+            presult = None
             try:
                 presult = poll(DEFAULT_SLEEP)
-                if not presult:
-                    return
             except (IOError, select.error) as e:
                 if support.get_errno(e) == errno.EINTR:
                     return
+                print (e)
                 raise
             except SYSTEM_EXCEPTIONS:
+                print (e)
                 raise
             except Exception as e:
                 print (e)
-                return
+
+            if presult is None:
+                ev_sleep(3)
 
             for fileno, event in presult:
                 if event & select.POLLNVAL:
