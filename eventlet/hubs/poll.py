@@ -97,3 +97,4 @@ class Hub(hub.BaseHub):
                 self.add_listener_event(READ, fileno)
             if event & WRITE_MASK:
                 self.add_listener_event(WRITE, fileno)
+        return bool(presult)

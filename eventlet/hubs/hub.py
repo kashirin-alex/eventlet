@@ -26,6 +26,7 @@ import eventlet
 from eventlet.support import greenlets as greenlet, clear_sys_exc_info
 
 orig_threading = eventlet.patcher.original('threading')
+ev_sleep = eventlet.patcher.original('time').sleep
 
 if os.environ.get('EVENTLET_CLOCK'):
     mod = os.environ.get('EVENTLET_CLOCK').rsplit('.', 1)
@@ -333,7 +334,9 @@ class BaseHub(object):
         wait = self.wait
         event_notifier = self.event_notifier
         while not self.stopping:
-            wait(60.0)
+            if not wait(60.0):
+                ev_sleep(3)
+                continue
             if not event_notifier.is_set():
                 event_notifier.set()
         #
