@@ -446,10 +446,12 @@ class Hub(object):
                         ev_sleep(0)
                         continue
                     if not listeners_events:
+                        print ("no  events: "+str(sleep_time))
                         # wait for fd signals
                         event_notifier_wait(sleep_time)
                         event_notifier_clear()
                     else:
+                        print ("yes events: "+str(sleep_time))
                         ev_sleep(0)
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
