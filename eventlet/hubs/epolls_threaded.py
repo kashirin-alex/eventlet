@@ -205,6 +205,7 @@ class Hub(object):
                 self.listeners[evtype][fileno] = sec.pop(0)
                 if not sec:
                     self.secondaries[evtype].pop(fileno)
+
         self.register(fileno)
         #
 
@@ -299,7 +300,7 @@ class Hub(object):
         poll = self.poll.poll
         add_events = self.listeners_events.append
 
-        no_one_waiting = self.event_notifier.is_set
+        no_waiters = self.event_notifier.is_set
         notify = self.event_notifier.set
 
         while not self.stopping:
@@ -330,7 +331,7 @@ class Hub(object):
                 if event & WRITE_MASK:
                     add_events((WRITE, fileno))
 
-            if not no_one_waiting():
+            if not no_waiters():
                 notify()
         #
 
