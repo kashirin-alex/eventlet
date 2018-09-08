@@ -19,13 +19,10 @@ ev_sleep = eventlet.patcher.original('time').sleep
 def is_available():
     return hasattr(select, 'epoll')
 
-heappush = heapq.heappush
-heappop = heapq.heappop
-
 g_prevent_multiple_readers = True
 DEFAULT_SLEEP = 60.0
 
-# EVENT TYPE INDEX FOR listeners TUPLE
+# EVENT TYPE INDEX FOR listeners in a TUPLE
 READ = 0
 WRITE = 1
 event_types = (READ, WRITE)
@@ -34,8 +31,10 @@ EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT
 POLLNVAL = select.POLLNVAL
+SELECT_ERR = select.error
 
-noop = FdListener(READ, 0, lambda x: None, lambda x: None, None)
+heappush = heapq.heappush
+heappop = heapq.heappop
 
 
 class Hub(object):
@@ -59,6 +58,7 @@ class Hub(object):
         self.next_timers = []
         self.listeners_events = deque()
         self.event_notifier = orig_threading.Event()
+        self.events_waiter = None
 
         self.greenlet = greenlet.greenlet(self.run)
         self.stopping = False
@@ -70,6 +70,9 @@ class Hub(object):
         self._old_signal_handler = None
 
         self.poll = select.epoll()
+        self.poll_register = self.poll.register
+        self.poll_modify = self.poll.modify
+        self.poll_unregister = self.poll.unregister
         #
 
     def block_detect_pre(self):
@@ -145,15 +148,15 @@ class Hub(object):
         try:
             if mask:
                 if new:
-                    self.poll.register(fileno, mask)
+                    self.poll_register(fileno, mask)
                     return
                 try:
-                    self.poll.modify(fileno, mask)
+                    self.poll_modify(fileno, mask)
                 except (IOError, OSError):
-                    self.poll.register(fileno, mask)
+                    self.poll_register(fileno, mask)
                 return
             try:
-                self.poll.unregister(fileno)
+                self.poll_unregister(fileno)
             except (KeyError, IOError, OSError):
                 # raised if we try to remove a fileno that was
                 # already removed/invalid
@@ -236,7 +239,7 @@ class Hub(object):
             self.add_listener_event(listener.evtype, listener.fileno)
 
         try:
-            self.poll.unregister(fileno)
+            self.poll_unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
             # raised if we try to remove a fileno that was
             # already removed/invalid
@@ -263,6 +266,8 @@ class Hub(object):
         # for those greenlets that are currently
         # children of the dead hub and may subsequently
         # exit without further switching to hub.
+        # - waiting_thread will continue to add fd events to the listeners_events
+        # or start new Thread depends on the state of self.events_waiter with the new greenlet
         self.greenlet.parent = new
         self.greenlet = new
         #
@@ -299,7 +304,6 @@ class Hub(object):
         #
 
     def waiting_thread(self):
-
         poll = self.poll.poll
         add_events = self.listeners_events.append
 
@@ -310,7 +314,7 @@ class Hub(object):
             presult = None
             try:
                 presult = poll(DEFAULT_SLEEP)
-            except (IOError, select.error) as e:
+            except (IOError, SELECT_ERR) as e:
                 if support.get_errno(e) != errno.EINTR:
                     raise
             except SYSTEM_EXCEPTIONS:
@@ -366,8 +370,9 @@ class Hub(object):
             pop_closed = self.closed.pop
             close_one = self.close_one
 
-            events_waiter = orig_threading.Thread(target=self.waiting_thread)
-            events_waiter.start()
+            if self.events_waiter is None or not self.events_waiter.is_alive():
+                self.events_waiter = orig_threading.Thread(target=self.waiting_thread)
+                self.events_waiter.start()
 
             self.event_notifier.set()
             event_notifier_wait = self.event_notifier.wait
