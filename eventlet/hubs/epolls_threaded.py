@@ -405,7 +405,6 @@ class Hub(object):
                 print (e)
                 raise
             except SYSTEM_EXCEPTIONS:
-                print (e)
                 raise
             except Exception as e:
                 print (e)
