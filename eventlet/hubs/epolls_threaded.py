@@ -449,6 +449,8 @@ class Hub(object):
                         # wait for fd signals
                         event_notifier_wait(sleep_time)
                         event_notifier_clear()
+                    else:
+                        ev_sleep(0)
                     continue
                 delay = (sleep_time+delay)/2  # delay is negative value
 
