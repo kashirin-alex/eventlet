@@ -385,6 +385,8 @@ class Hub(object):
                 while closed:
                     close_one(pop_closed(-1))
 
+                if listeners_events:
+                    print ("yes events: " + str(len(listeners_events)))
                 # Process all fds events
                 while listeners_events:
                     # call on fd cb
