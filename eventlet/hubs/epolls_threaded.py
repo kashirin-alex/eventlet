@@ -424,6 +424,7 @@ class Hub(object):
                         heappush(timers, (timer.scheduled_time, timer))
 
                 if not timers:
+                    ev_sleep(0)
                     if not listeners_events:
                         # wait for fd signals
                         event_notifier_wait(DEFAULT_SLEEP)
