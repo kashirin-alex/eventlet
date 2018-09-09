@@ -356,15 +356,13 @@ class Hub(object):
             timers = self.timers
             next_timers = self.next_timers
             pop_next_timer = self.next_timers.pop
+            process_timer = self.process_timer_event
 
-            listeners = self.listeners
-            get_writer = listeners[WRITE].get
-            get_reader = listeners[READ].get
-            listeners_events = self.listeners_events
-            listener_event_next = self.listeners_events.popleft
             closed = self.closed
             pop_closed = self.closed.pop
             close_one = self.close_one
+            listeners_events = self.listeners_events
+            process_listener = self.process_listener_event
 
             if self.events_waiter is None or not self.events_waiter.is_alive():
                 self.events_waiter = orig_threading.Thread(target=self.waiting_thread)
@@ -375,7 +373,6 @@ class Hub(object):
             event_notifier_clear = self.event_notifier.clear
 
             while not self.stopping:
-                debug_blocking = self.debug_blocking
 
                 # Ditch all closed fds first.
                 while closed:
@@ -383,35 +380,8 @@ class Hub(object):
 
                 # Process all fds events
                 while listeners_events:
-                    # call on fd cb
-                    evtype, fileno = listener_event_next()
-                    if debug_blocking:
-                        self.block_detect_pre()
-                    try:
-                        if evtype is READ:
-                            l = get_reader(fileno)
-                            if l is not None:
-                                l.cb(fileno)
-                            continue
-                        if evtype is WRITE:
-                            l = get_writer(fileno)
-                            if l is not None:
-                                l.cb(fileno)
-                            continue
-
-                        l = get_writer(fileno)
-                        if l is not None:
-                            l.cb(fileno)
-                        l = get_reader(fileno)
-                        if l is not None:
-                            l.cb(fileno)
-                    except SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        self.squelch_exception(fileno, sys.exc_info())
-                        clear_sys_exc_info()
-                    if debug_blocking:
-                        self.block_detect_post()
+                    # call on fd
+                    process_listener(*listeners_events.popleft())
 
                 # Assign new timers
                 while next_timers:
@@ -452,20 +422,8 @@ class Hub(object):
 
                 # remove evaluated timer
                 heappop(timers)
-
                 # call on timer
-                if debug_blocking:
-                    self.block_detect_pre()
-                try:
-                    timer()
-                except SYSTEM_EXCEPTIONS:
-                    raise
-                except:
-                    if self.debug_exceptions:
-                        self.squelch_timer_exception(timer, sys.exc_info())
-                    clear_sys_exc_info()
-                if debug_blocking:
-                    self.block_detect_post()
+                process_timer(timer)
 
             else:
                 del self.timers[:]
@@ -474,6 +432,48 @@ class Hub(object):
         finally:
             self.running = False
             self.stopping = False
+        #
+
+    def process_listener_event(self, evtype, fileno):
+        if self.debug_blocking:
+            self.block_detect_pre()
+
+        try:
+            if evtype is not None:
+                l = self.listeners[evtype].get(fileno)
+                if l is not None:
+                    l.cb(fileno)
+            else:
+                l = self.listeners[READ].get(fileno)
+                if l is not None:
+                    l.cb(fileno)
+                l = self.listeners[WRITE].get(fileno)
+                if l is not None:
+                    l.cb(fileno)
+        except SYSTEM_EXCEPTIONS:
+            raise
+        except:
+            self.squelch_exception(fileno, sys.exc_info())
+            clear_sys_exc_info()
+
+        if self.debug_blocking:
+            self.block_detect_post()
+        #
+
+    def process_timer_event(self, timer):
+        if self.debug_blocking:
+            self.block_detect_pre()
+        try:
+            timer()
+        except SYSTEM_EXCEPTIONS:
+            raise
+        except:
+            if self.debug_exceptions:
+                self.squelch_timer_exception(timer, sys.exc_info())
+            clear_sys_exc_info()
+
+        if self.debug_blocking:
+            self.block_detect_post()
         #
 
     def abort(self, wait=False):
