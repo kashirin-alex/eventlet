@@ -406,8 +406,11 @@ class Hub(object):
 
                 sleep_time = exp - clock()
                 if sleep_time > 0:
+                    if next_timers:
+                        ev_sleep(0)
+                        continue
                     sleep_time += delay
-                    if sleep_time <= 0 or next_timers:
+                    if sleep_time <= 0:
                         delay = 0  # preserving delay can cause a close loop on a long delay
                         ev_sleep(0)
                         continue
