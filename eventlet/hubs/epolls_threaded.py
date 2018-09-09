@@ -45,9 +45,6 @@ class Hub(object):
 
     def __init__(self, clock=None):
         self.listeners = ({}, {})
-        self.listeners_r = self.listeners[READ]
-        self.listeners_w = self.listeners[WRITE]
-
         self.secondaries = ({}, {})
         self.closed = []
         self.lclass = FdListener
@@ -113,7 +110,7 @@ class Hub(object):
         close operations from accidentally shutting down the wrong OS thread.
         """
 
-        new = not (fileno in self.listeners_r or fileno in self.listeners_w)
+        new = not (fileno in self.listeners[READ] or fileno in self.listeners[WRITE])
 
         listener = self.lclass(evtype, fileno, cb, tb, mark_as_closed)
         bucket = self.listeners[evtype]
@@ -145,9 +142,9 @@ class Hub(object):
 
     def register(self, fileno, new=False):
         mask = 0
-        if fileno in self.listeners_r:
+        if fileno in self.listeners[READ]:
             mask |= READ_MASK | EXC_MASK
-        if fileno in self.listeners_w:
+        if fileno in self.listeners[WRITE]:
             mask |= WRITE_MASK | EXC_MASK
         try:
             if mask:
@@ -452,10 +449,10 @@ class Hub(object):
                 if l is not None:
                     l.cb(fileno)
             else:
-                l = self.listeners_w.get(fileno)
+                l = self.listeners[WRITE].get(fileno)
                 if l is not None:
                     l.cb(fileno)
-                l = self.listeners_r.get(fileno)
+                l = self.listeners[READ].get(fileno)
                 if l is not None:
                     l.cb(fileno)
         except SYSTEM_EXCEPTIONS:
@@ -545,16 +542,16 @@ class Hub(object):
     # for debugging:
 
     def get_readers(self):
-        return self.listeners_r.values()
+        return self.listeners[READ].values()
 
     def get_writers(self):
-        return self.listeners_w.values()
+        return self.listeners[WRITE].values()
 
     def get_timers_count(self):
         return self.timers.__len__()+self.next_timers.__len__()
 
     def get_listeners_count(self):
-        return self.listeners_r.__len__(),  self.listeners_w.__len__()
+        return self.listeners[READ].__len__(),  self.listeners[WRITE].__len__()
 
     def get_listeners_events_count(self):
         return self.listeners_events.__len__()
