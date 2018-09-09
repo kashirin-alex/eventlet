@@ -256,7 +256,7 @@ def verify_hub_empty():
     writers = hub.get_writers()
     num_readers = len(readers)
     num_writers = len(writers)
-    num_timers = hub.get_timers_count
+    num_timers = hub.get_timers_count()
     assert num_readers == 0 and num_writers == 0, \
         "Readers: %s (%d) Writers: %s (%d)" % (
             ', '.join(map(format_listener, readers)), num_readers,
