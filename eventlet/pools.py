@@ -147,7 +147,7 @@ class Pool(object):
         """Return the number of free items in the pool.  This corresponds
         to the number of :meth:`get` calls needed to empty the pool.
         """
-        return self.free_items.__len__() + self.max_size - self.current_size
+        return len(self.free_items) + self.max_size - self.current_size
 
     def waiting(self):
         """Return the number of routines waiting for a pool item.

@@ -544,13 +544,13 @@ class Hub(object):
         return self.listeners[WRITE].values()
 
     def get_timers_count(self):
-        return self.timers.__len__()+self.next_timers.__len__()
+        return len(self.timers)+len(self.next_timers)
 
     def get_listeners_count(self):
-        return self.listeners[READ].__len__(),  self.listeners[WRITE].__len__()
+        return len(self.listeners[READ]),  len(self.listeners[WRITE])
 
     def get_listeners_events_count(self):
-        return self.listeners_events.__len__()
+        return len(self.listeners_events)
 
     def set_debug_listeners(self, value):
         self.lclass = DebugListener if value else FdListener

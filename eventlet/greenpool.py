@@ -43,7 +43,7 @@ class GreenPool(object):
     def running(self):
         """ Returns the number of greenthreads that are currently executing
         functions in the GreenPool."""
-        return self.coroutines_running.__len__()
+        return len(self.coroutines_running)
 
     def free(self):
         """ Returns the number of greenthreads available for use.

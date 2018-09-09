@@ -44,11 +44,11 @@ class Semaphore(object):
 
     def __repr__(self):
         params = (self.__class__.__name__, hex(id(self)),
-                  self.counter, self._waiters.__len__())
+                  self.counter, len(self._waiters))
         return '<%s at %s c=%s _w[%s]>' % params
 
     def __str__(self):
-        params = (self.__class__.__name__, self.counter, self._waiters.__len__())
+        params = (self.__class__.__name__, self.counter, len(self._waiters))
         return '<%s c=%s _w[%s]>' % params
 
     def locked(self):
@@ -164,7 +164,7 @@ class Semaphore(object):
         # positive means there are free items
         # zero means there are no free items but nobody has requested one
         # negative means there are requests for items, but no items
-        return self.counter - self._waiters.__len__()
+        return self.counter - len(self._waiters)
 
 
 class BoundedSemaphore(Semaphore):
