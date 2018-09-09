@@ -57,9 +57,9 @@ class Timer(object):
         if self.called:
             return
         self.called = True
-        cb, args, kw = self.tpl
+        # cb, args, kw = self.tpl
         try:
-            cb(*args, **kw)
+            self.tpl[0](*self.tpl[1], **self.tpl[2])
         finally:
             self.tpl = None
 
@@ -97,8 +97,10 @@ class LocalTimer(Timer):
         self.called = True
         if self.greenlet is not None and self.greenlet.dead:
             return
-        cb, args, kw = self.tpl
-        cb(*args, **kw)
+
+        self.tpl[0](*self.tpl[1], **self.tpl[2])
+        # cb, args, kw = self.tpl
+        # cb(*args, **kw)
 
     def cancel(self):
         self.greenlet = None
