@@ -229,16 +229,12 @@ class Hub(object):
     def remove_descriptor(self, fileno):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
-        listeners = []
         for evtype in event_types:
             l = self.listeners[evtype].get(fileno)
             if l:
-                listeners.append(l)
-            listeners += self.secondaries[evtype].get(fileno, [])
-
-        for listener in listeners:
-            self.add_listener_event((listener.evtype, listener.fileno))
-
+                self.add_listener_event((l.evtype, l.fileno))
+            for l in self.secondaries[evtype].get(fileno, []):
+                self.add_listener_event((l.evtype, l.fileno))
         try:
             self.poll_unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
