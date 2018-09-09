@@ -70,6 +70,7 @@ class Hub(object):
         self._old_signal_handler = None
 
         self.poll = select.epoll()
+        self.do_poll = self.poll.poll
         self.poll_register = self.poll.register
         self.poll_modify = self.poll.modify
         self.poll_unregister = self.poll.unregister
@@ -303,37 +304,38 @@ class Hub(object):
             sys.stderr.flush()
         #
 
+    def wait(self):
+        try:
+            presult = self.do_poll(DEFAULT_SLEEP)
+        except SYSTEM_EXCEPTIONS:
+            raise
+        except:
+            presult = None
+
+        if not presult:
+            ev_sleep(3)
+            return
+
+        for fileno, event in presult:
+            if event & POLLNVAL:
+                self.remove_descriptor(fileno)
+                continue
+            if event & EXC_MASK:
+                self.listeners_events.append((None, fileno))
+                continue
+            if event & READ_MASK:
+                self.listeners_events.append((READ, fileno))
+            if event & WRITE_MASK:
+                self.listeners_events.append((WRITE, fileno))
+        #
+
     def waiting_thread(self):
-        poll = self.poll.poll
-        add_events = self.listeners_events.append
 
         no_waiters = self.event_notifier.is_set
         notify = self.event_notifier.set
 
         while not self.stopping:
-            try:
-                presult = poll(DEFAULT_SLEEP)
-            except SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                presult = None
-
-            if not presult:
-                ev_sleep(3)
-                continue
-
-            for fileno, event in presult:
-                if event & POLLNVAL:
-                    self.remove_descriptor(fileno)
-                    continue
-                if event & EXC_MASK:
-                    add_events((None, fileno))
-                    continue
-                if event & READ_MASK:
-                    add_events((READ, fileno))
-                if event & WRITE_MASK:
-                    add_events((WRITE, fileno))
-
+            self.wait()
             if not no_waiters():
                 notify()
         #
