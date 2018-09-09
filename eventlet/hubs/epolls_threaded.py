@@ -56,7 +56,10 @@ class Hub(object):
 
         self.timers = []
         self.next_timers = []
+        self.add_next_timer = self.next_timers.append
+
         self.listeners_events = deque()
+        self.add_listener_event = self.listeners_events.append
         self.event_notifier = orig_threading.Event()
         self.events_waiter = None
 
@@ -237,7 +240,7 @@ class Hub(object):
             listeners += self.secondaries[evtype].get(fileno, [])
 
         for listener in listeners:
-            self.add_listener_event(listener.evtype, listener.fileno)
+            self.add_listener_event((listener.evtype, listener.fileno))
 
         try:
             self.poll_unregister(fileno)
@@ -321,21 +324,20 @@ class Hub(object):
                 self.remove_descriptor(fileno)
                 continue
             if event & EXC_MASK:
-                self.listeners_events.append((None, fileno))
+                self.add_listener_event((None, fileno))
                 continue
             if event & READ_MASK:
-                self.listeners_events.append((READ, fileno))
+                self.add_listener_event((READ, fileno))
             if event & WRITE_MASK:
-                self.listeners_events.append((WRITE, fileno))
+                self.add_listener_event((WRITE, fileno))
         #
 
     def waiting_thread(self):
-
         no_waiters = self.event_notifier.is_set
         notify = self.event_notifier.set
-
+        wait = self.wait
         while not self.stopping:
-            self.wait()
+            wait()
             if not no_waiters():
                 notify()
         #
@@ -364,6 +366,7 @@ class Hub(object):
             pop_closed = self.closed.pop
             close_one = self.close_one
             listeners_events = self.listeners_events
+            pop_listener_event = self.listeners_events.popleft
             process_listener = self.process_listener_event
 
             if self.events_waiter is None or not self.events_waiter.is_alive():
@@ -383,7 +386,7 @@ class Hub(object):
                 # Process all fds events
                 while listeners_events:
                     # call on fd
-                    process_listener(*listeners_events.popleft())
+                    process_listener(*pop_listener_event())
 
                 # Assign new timers
                 while next_timers:
@@ -449,10 +452,10 @@ class Hub(object):
                 if l is not None:
                     l.cb(fileno)
             else:
-                l = self.listeners[READ].get(fileno)
+                l = self.listeners_w.get(fileno)
                 if l is not None:
                     l.cb(fileno)
-                l = self.listeners[WRITE].get(fileno)
+                l = self.listeners_r.get(fileno)
                 if l is not None:
                     l.cb(fileno)
         except SYSTEM_EXCEPTIONS:
@@ -513,12 +516,9 @@ class Hub(object):
             sys.stderr.flush()
             clear_sys_exc_info()
 
-    def add_listener_event(self, *evtype_fileno):
-        self.listeners_events.append(evtype_fileno)
-
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        self.next_timers.append(timer)
+        self.add_next_timer(timer)
         return timer
 
     def schedule_call_local(self, seconds, cb, *args, **kw):
