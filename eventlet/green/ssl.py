@@ -157,14 +157,13 @@ class GreenSSLSocket(_original_sslsocket):
                 raise ValueError(
                     "non-zero flags not allowed in calls to sendall() on %s" %
                     self.__class__)
-            len_date = len(data)
-            sent = 0
-            while len_date > sent:
-                count = self.send(data[sent:])
-                if count == 0:
-                    trampoline(self, write=True, timeout_exc=timeout_exc('timed out'))
-                else:
-                    sent += count
+            timeout = timeout_exc('timed out')
+            while data:
+                offset = self.send(data)
+                if offset > 0:
+                    data = data[offset:]
+                if data:
+                    trampoline(self, write=True, timeout_exc=timeout)
             return  # None for success
         else:
             while True:

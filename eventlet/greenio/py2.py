@@ -184,12 +184,12 @@ class _SocketDuckForFd(object):
     def sendall(self, data):
         os_write = os.write
         fileno = self._fileno
-        len_data = len(data)
-        sent = 0
-        while len_data > sent:
+        while data:
             try:
-                sent += os_write(fileno, data[sent:])
-                if len_data > sent:
+                offset = os_write(fileno, data)
+                if offset > 0:
+                    data = data[offset:]
+                if data:
                     self._trampoline(self, write=True)
             except OSError as e:
                 if get_errno(e) != errno. EAGAIN:

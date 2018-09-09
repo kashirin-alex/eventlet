@@ -398,10 +398,10 @@ class GreenSocket(object):
         return self._send_loop(self.fd.sendto, data, *args)
 
     def sendall(self, data, flags=0):
-        len_data = len(data)
-        sent = 0
-        while len_data > sent:
-            sent += self.send(data[sent:], flags)
+        while data:
+            offset = self._send_loop(self.fd.send, data, flags)
+            if offset > 0:
+                data = data[offset:]
 
     def setblocking(self, flag):
         if flag:
