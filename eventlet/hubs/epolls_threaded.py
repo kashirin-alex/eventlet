@@ -1,3 +1,4 @@
+
 import errno
 import heapq
 import sys
@@ -94,17 +95,12 @@ class Hub(object):
 
     def add(self, evtype, fileno, cb, tb, mark_as_closed):
         """ Signals an intent to or write a particular file descriptor.
-
         The *evtype* argument is either the constant READ or WRITE.
-
         The *fileno* argument is the file number of the file of interest.
-
         The *cb* argument is the callback which will be called when the file
         is ready for reading/writing.
-
         The *tb* argument is the throwback used to signal (into the greenlet)
         that the file was closed.
-
         The *mark_as_closed* is used in the context of the event hub to
         prepare a Python object as being closed, pre-empting further
         close operations from accidentally shutting down the wrong OS thread.
@@ -220,7 +216,6 @@ class Hub(object):
         """ If a file descriptor is returned by the OS as the result of some
             open call (or equivalent), that signals that it might be being
             recycled.
-
             Catch the case where the fd was previously in use.
         """
         self._obsolete(fileno)
@@ -347,84 +342,16 @@ class Hub(object):
             self.running = True
             self.stopping = False
 
-            clock = self.clock
-            delay = 0
-
-            timers = self.timers
-            next_timers = self.next_timers
-            pop_next_timer = self.next_timers.pop
-            process_timer = self.process_timer_event
-
-            closed = self.closed
-            pop_closed = self.closed.pop
-            close_one = self.close_one
-            listeners_events = self.listeners_events
-            pop_listener_event = self.listeners_events.popleft
-            process_listener = self.process_listener_event
-
             if self.events_waiter is None or not self.events_waiter.is_alive():
                 self.events_waiter = orig_threading.Thread(target=self.waiting_thread)
                 self.events_waiter.start()
 
             self.event_notifier.set()
-            event_notifier_wait = self.event_notifier.wait
-            event_notifier_clear = self.event_notifier.clear
 
+            loop_ops = self.run_loop_ops
             while not self.stopping:
-
-                # Ditch all closed fds first.
-                while closed:
-                    close_one(pop_closed(-1))
-
-                # Process all fds events
-                while listeners_events:
-                    # call on fd
-                    process_listener(*pop_listener_event())
-
-                # Assign new timers
-                while next_timers:
-                    timer = pop_next_timer(-1)
-                    if not timer.called:
-                        heappush(timers, (timer.scheduled_time, timer))
-
-                if not timers:
-                    ev_sleep(0)
-                    if not listeners_events:
-                        # wait for fd signals
-                        event_notifier_wait(DEFAULT_SLEEP)
-                        event_notifier_clear()
-                    continue
-
-                # current evaluated timer
-                exp, timer = timers[0]
-                if timer.called:
-                    # remove called/cancelled timer
-                    heappop(timers)
-                    continue
-
-                sleep_time = exp - clock()
-                if sleep_time > 0:
-                    if next_timers:
-                        ev_sleep(0)
-                        continue
-                    sleep_time += delay
-                    if sleep_time <= 0:
-                        delay = 0  # preserving delay can cause a close loop on a long delay
-                        ev_sleep(0)
-                        continue
-                    if not listeners_events:
-                        # wait for fd signals
-                        event_notifier_wait(sleep_time)
-                        event_notifier_clear()
-                    else:
-                        ev_sleep(0)
-                    continue
-                delay = (sleep_time+delay)/2  # delay is negative value
-
-                # remove evaluated timer
-                heappop(timers)
-                # call on timer
-                process_timer(timer)
+                # simplify memory de-allocations by method's scope destructor
+                loop_ops()
 
             else:
                 del self.timers[:]
@@ -433,6 +360,77 @@ class Hub(object):
         finally:
             self.running = False
             self.stopping = False
+        #
+
+    def run_loop_ops(self):
+        # Ditch all closed fds first.
+        while self.closed:
+            self.close_one(self.closed.pop(-1))
+
+        # Process all fds events
+        while self.listeners_events:
+            # call on fd
+            self.process_listener_event(*self.listeners_events.popleft())
+
+        timers = self.timers
+
+        # Assign new timers
+        while self.next_timers:
+            timer = self.next_timers.pop(-1)
+            if not timer.called:
+                heappush(timers, (timer.scheduled_time, timer))
+
+        if not timers:
+            ev_sleep(0)
+            if not self.listeners_events:
+                # wait for fd signals
+                self.event_notifier.wait(DEFAULT_SLEEP)
+                self.event_notifier.clear()
+            return
+
+        # current evaluated timer
+        exp, timer = timers[0]
+        if timer.called:
+            # remove called/cancelled timer
+            heappop(timers)
+            return
+
+        sleep_time = exp - self.clock()
+        if sleep_time > 0:
+            if self.next_timers:
+                ev_sleep(0)
+                return
+            # sleep_time += delay
+            # if sleep_time <= 0:
+            #    delay = 0  # preserving delay can cause a close loop on a long delay
+            #    ev_sleep(0)
+            #    return
+            if not self.listeners_events:
+                # wait for fd signals
+                self.event_notifier.wait(sleep_time)
+                self.event_notifier.clear()
+            else:
+                ev_sleep(0)
+            return
+        # delay = (sleep_time + delay) / 2  # delay is negative value
+
+        # remove evaluated timer
+        heappop(timers)
+
+        # call on timer
+        if self.debug_blocking:
+            self.block_detect_pre()
+        try:
+            timer()
+        except SYSTEM_EXCEPTIONS:
+            raise
+        except:
+            if self.debug_exceptions:
+                self.squelch_timer_exception(timer, sys.exc_info())
+            clear_sys_exc_info()
+
+        if self.debug_blocking:
+            self.block_detect_post()
         #
 
     def process_listener_event(self, evtype, fileno):
@@ -461,26 +459,9 @@ class Hub(object):
             self.block_detect_post()
         #
 
-    def process_timer_event(self, timer):
-        if self.debug_blocking:
-            self.block_detect_pre()
-        try:
-            timer()
-        except SYSTEM_EXCEPTIONS:
-            raise
-        except:
-            if self.debug_exceptions:
-                self.squelch_timer_exception(timer, sys.exc_info())
-            clear_sys_exc_info()
-
-        if self.debug_blocking:
-            self.block_detect_post()
-        #
-
     def abort(self, wait=False):
         """Stop the runloop. If run is executing, it will exit after
         completing the next runloop iteration.
-
         Set *wait* to True to cause abort to switch to the hub immediately and
         wait until it's finished processing.  Waiting for the hub will only
         work from the main greenthread; all other greenthreads will become
