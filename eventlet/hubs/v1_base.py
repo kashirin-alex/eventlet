@@ -39,7 +39,10 @@ class HubBase(HubSkeleton):
         self.timer_delay = 0
 
         self.listeners_events = deque()
-        self.add_listener_event = self.listeners_events.append
+        #
+
+    def add_listener_event(self, listener):
+        self.listeners_events.append(listener)
         #
 
     def has_listeners_fileno(self, fileno):
