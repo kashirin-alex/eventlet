@@ -1,9 +1,8 @@
-
 import errno
 
 import eventlet
 from eventlet import support
-from eventlet.hubs.hub_v1_threaded import BaseHub, ev_sleep
+from eventlet.hubs.v1_hub_threaded import BaseHub, ev_sleep
 
 select = eventlet.patcher.original('select')
 orig_threading = eventlet.patcher.original('threading')

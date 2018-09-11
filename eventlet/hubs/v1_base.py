@@ -4,7 +4,7 @@ import traceback
 from collections import deque
 
 import eventlet
-from eventlet.hubs.hub_skeleton_v1 import HubSkeleton
+from eventlet.hubs.v1_skeleton import HubSkeleton
 
 # EVENT TYPE INDEX FOR listeners TUPLE
 READ = 0

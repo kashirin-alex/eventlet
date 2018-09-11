@@ -99,7 +99,6 @@ class DebugListener(FdListener):
     __str__ = __repr__
 
 
-
 class HubSkeleton(object):
     """ HubSkeleton class for easing the implementation of subclasses to greenlet, debug and Listener"""
 

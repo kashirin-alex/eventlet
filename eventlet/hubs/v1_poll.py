@@ -1,7 +1,7 @@
 import errno
 
 from eventlet import patcher
-from eventlet.hubs.hub_v1 import BaseHub
+from eventlet.hubs.v1_hub import BaseHub
 from eventlet import support
 
 select = patcher.original('select')

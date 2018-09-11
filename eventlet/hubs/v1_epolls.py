@@ -2,8 +2,8 @@ import errno
 from eventlet import support
 from eventlet import patcher
 
-from eventlet.hubs.hub_v1 import BaseHub
-from eventlet.hubs import poll
+from eventlet.hubs.v1_hub import BaseHub
+from eventlet.hubs import v1_poll
 
 select = patcher.original('select')
 
@@ -12,7 +12,7 @@ def is_available():
     return hasattr(select, 'epoll')
 
 
-class Hub(poll.Hub):
+class Hub(v1_poll.Hub):
 
     def __init__(self, clock=None):
         BaseHub.__init__(self, clock)

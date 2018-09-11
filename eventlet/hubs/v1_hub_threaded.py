@@ -3,7 +3,7 @@ import sys
 
 import eventlet
 from eventlet import support
-from eventlet.hubs.hub_base_v1 import HubBase
+from eventlet.hubs.v1_base import HubBase
 
 orig_threading = eventlet.patcher.original('threading')
 ev_sleep = eventlet.patcher.original('time').sleep
