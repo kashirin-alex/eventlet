@@ -32,8 +32,16 @@ class HubBase(HubSkeleton):
         self.add_listener_event = self.listeners_events.append
         #
 
-    def has_fileno_listener(self, fileno):
+    def has_listeners_fileno(self, fileno):
         return fileno in self.listeners[READ] or fileno in self.listeners[WRITE]
+        #
+
+    def has_listener_reader(self, fileno):
+        return fileno in self.listeners[READ]
+        #
+
+    def has_listener_writer(self, fileno):
+        return fileno in self.listeners[WRITE]
         #
 
     def add(self, *args):

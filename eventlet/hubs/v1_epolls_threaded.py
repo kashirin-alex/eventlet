@@ -33,7 +33,7 @@ class Hub(BaseHub):
 
     def add(self, *args):
         """ *args: evtype, fileno, cb, tb, mac """
-        new = not self.has_fileno_listener(args[1])
+        new = not self.has_listeners_fileno(args[1])
         listener = self.add_listener(*args)
         try:
             # new=True, Means we've added a new listener
@@ -46,9 +46,9 @@ class Hub(BaseHub):
 
     def register(self, fileno, new=False):
         mask = 0
-        if fileno in self.listeners[self.READ]:
+        if self.has_listener_reader(fileno):
             mask |= READ_MASK | EXC_MASK
-        if fileno in self.listeners[self.WRITE]:
+        if self.has_listener_writer(fileno):
             mask |= WRITE_MASK | EXC_MASK
         try:
             if mask:

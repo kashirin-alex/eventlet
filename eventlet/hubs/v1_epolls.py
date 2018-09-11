@@ -20,7 +20,7 @@ class Hub(v1_poll.Hub):
 
     def add(self, *args):
         """ *args: evtype, fileno, cb, tb, mac """
-        new = not self.has_fileno_listener(args[1])
+        new = not self.has_listeners_fileno(args[1])
         listener = BaseHub.add(self, *args)
         try:
             self.register(args[1], new=new)

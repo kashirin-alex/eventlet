@@ -4,7 +4,7 @@ import types
 
 from eventlet.support import greenlets as greenlet
 import six
-from eventlet.hubs import hub
+from eventlet.hubs import v1_hub
 
 try:
     import event
@@ -44,9 +44,7 @@ class event_wrapper(object):
         return bool(self.impl and self.impl.pending())
 
 
-class Hub(hub.BaseHub):
-
-    SYSTEM_EXCEPTIONS = (KeyboardInterrupt, SystemExit)
+class Hub(v1_hub.BaseHub):
 
     def __init__(self):
         super(Hub, self).__init__()
@@ -117,9 +115,9 @@ class Hub(hub.BaseHub):
         else:
             cb = real_cb
 
-        if evtype is hub.READ:
+        if evtype is self.READ:
             evt = event.read(fileno, cb, fileno)
-        elif evtype is hub.WRITE:
+        elif evtype is self.WRITE:
             evt = event.write(fileno, cb, fileno)
         else:
             return
