@@ -64,6 +64,7 @@ class BaseHub(HubBase):
         try:
             while not self.stopping:
                 chk = True
+                when = self.clock()
                 while not self.stopping and (chk or next_events):
 
                     # Ditch all closed fds first.
@@ -94,7 +95,7 @@ class BaseHub(HubBase):
                             continue
                         typ = 0
 
-                    due = exp - self.clock()
+                    due = exp - when
                     if due > 0:
                         chk = False
                         ev_sleep(0)
