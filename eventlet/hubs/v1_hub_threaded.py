@@ -76,14 +76,14 @@ class BaseHub(HubBase):
 
         # Process on fd event at a time
         if self.listeners_events:
-            print ('yes events', len(self.listeners_events))
-            # call on fd
             listener = self.listeners_events.popleft()
+            print ('yes events', len(self.listeners_events), listener)
             # if listener.spent:
             #    continue
             if self.debug_blocking:
                 self.block_detect_pre()
             try:
+                # call on fd
                 listener.cb(listener.fileno)
             except self.SYSTEM_EXCEPTIONS:
                 raise
