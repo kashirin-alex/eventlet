@@ -87,13 +87,15 @@ class HubBase(HubSkeleton):
         #
 
     def add_fd_event_read(self, fileno):
-        if fileno in self.listeners[READ]:
-            self.add_listener_event(self.listeners[READ][fileno])
+        l = self.listeners[READ].get(fileno)
+        if l:
+            self.add_listener_event(l)
         #
 
     def add_fd_event_write(self, fileno):
-        if fileno in self.listeners[WRITE]:
-            self.add_listener_event(self.listeners[WRITE][fileno])
+        l = self.listeners[WRITE].get(fileno)
+        if l:
+            self.add_listener_event(l)
         #
 
     def add_fd_event_error(self, fileno):
