@@ -74,7 +74,8 @@ class BaseHub(HubBase):
             self.close_one(self.closed.pop(-1))
 
         # Process all fds events
-        print ('yes events', len(self.listeners_events))
+        if self.listeners_events:
+            print ('yes events', len(self.listeners_events))
         while self.listeners_events:
             # call on fd
             evtype, fileno = self.listeners_events.popleft()
