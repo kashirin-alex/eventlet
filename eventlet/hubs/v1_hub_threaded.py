@@ -85,11 +85,11 @@ class BaseHub(HubBase):
                     sleep_time = timers[0][0]-self.clock()+self.timer_delay
                     if sleep_time < 0:
                         sleep_time = 0
-                    else:
-                        ev_sleep(0)
+                    # else:
+                    #    ev_sleep(0)
                 else:
                     sleep_time = self.default_sleep()
-                    ev_sleep(0)
+                    # ev_sleep(0)
 
                 print ('events', len(listeners_events), sleep_time, len(timers))
                 if not listeners_events:
