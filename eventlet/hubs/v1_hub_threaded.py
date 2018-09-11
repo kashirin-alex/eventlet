@@ -120,12 +120,10 @@ class BaseHub(HubBase):
             return
         sleep_time = exp - self.clock()
         if sleep_time > 0:
-            if not self.listeners_events and not self.next_timers:
+            if not self.listeners_events:
                 # wait for fd signals
                 self.event_notifier.wait(sleep_time)
                 self.event_notifier.clear()
-            else:
-                ev_sleep(0)
             return
         # remove evaluated timer
         heappop(timers)
