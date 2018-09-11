@@ -36,9 +36,8 @@ class HubBase(HubSkeleton):
         return fileno in self.listeners[READ] or fileno in self.listeners[WRITE]
         #
 
-    # Not Implemented
     def add(self, *args):
-        self.add_listener(*args)
+        return self.add_listener(*args)
         #
 
     def add_listener(self, *args):
@@ -108,7 +107,6 @@ class HubBase(HubSkeleton):
         """
         pass
 
-    # Not Implemented
     def remove(self, listener):
         if listener.spent:
             return
