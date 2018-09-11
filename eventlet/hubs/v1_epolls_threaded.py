@@ -100,11 +100,11 @@ class Hub(BaseHub):
             if event & POLLNVAL:
                 self.remove_descriptor(fileno)
                 continue
-            if event & EXC_MASK:
-                self.add_fd_event_error(fileno)
-                continue
             if event & READ_MASK:
                 self.add_fd_event_read(fileno)
             if event & WRITE_MASK:
                 self.add_fd_event_write(fileno)
+            if event & EXC_MASK:
+                self.add_fd_event_error(fileno)
+                continue
         #

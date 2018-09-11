@@ -87,15 +87,18 @@ class HubBase(HubSkeleton):
         #
 
     def add_fd_event_read(self, fileno):
-        self.add_listener_event((READ, fileno))
+        if fileno in self.listeners[READ]:
+            self.add_listener_event(self.listeners[READ][fileno])
         #
 
     def add_fd_event_write(self, fileno):
-        self.add_listener_event((WRITE, fileno))
+        if fileno in self.listeners[WRITE]:
+            self.add_listener_event(self.listeners[WRITE][fileno])
         #
 
     def add_fd_event_error(self, fileno):
-        self.add_listener_event((None, fileno))
+        self.add_fd_event_read(fileno)
+        self.add_fd_event_write(fileno)
         #
 
     def _obsolete(self, fileno):
@@ -167,11 +170,11 @@ class HubBase(HubSkeleton):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
         for evtype in event_types:
-            l = self.listeners[evtype].get(fileno)
+            l = self.listeners[evtype].pop(fileno)
             if l:
-                self.add_listener_event((None, l.fileno))
-            for l in self.secondaries[evtype].get(fileno, []):
-                self.add_listener_event((None, l.fileno))
+                self.add_listener_event((evtype, fileno, l))
+            for l in self.secondaries[evtype].pop(fileno, []):
+                self.add_listener_event((evtype, fileno, l))
         #
 
     @staticmethod
