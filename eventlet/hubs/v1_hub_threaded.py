@@ -119,7 +119,7 @@ class BaseHub(HubBase):
             return
         sleep_time = exp - self.clock()
         if sleep_time > 0:
-            if self.next_timers or sleep_time+self.timer_delay > 0:
+            if self.next_timers or sleep_time+self.timer_delay < 0:
                 print ('next_timers, sleep_time', len(self.next_timers), sleep_time+self.timer_delay)
                 ev_sleep(0)
                 return
