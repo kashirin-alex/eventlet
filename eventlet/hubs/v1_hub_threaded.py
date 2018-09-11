@@ -87,7 +87,6 @@ class BaseHub(HubBase):
                     exp, event = events[0]
                     if isinstance(event, self.lclass):
                         typ = 1
-                        print (exp, typ)
                     else:
                         if event.called:
                             # remove called/cancelled timer
@@ -99,6 +98,7 @@ class BaseHub(HubBase):
                     if due > 0:
                         chk = False
                         ev_sleep(0)
+                        print (typ, exp, )
                         continue
                     delay = (due + delay) / 2  # delay is negative value
 
