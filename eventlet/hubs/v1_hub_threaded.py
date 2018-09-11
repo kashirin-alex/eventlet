@@ -55,40 +55,42 @@ class BaseHub(HubBase):
             self.events_waiter = orig_threading.Thread(target=self.waiting_thread)
             self.events_waiter.start()
         self.event_notifier.set()
+        try:
+            loop_ops = self.run_loop_ops
+            while not self.stopping:
 
-        loop_ops = self.run_loop_ops
-        while not self.stopping:
-            # simplify memory de-allocations by method's scope destructor
-            loop_ops()
+                # Ditch all closed fds first.
+                while self.closed:
+                    self.close_one(self.closed.pop(-1))
 
-        del self.timers[:]
-        del self.next_timers[:]
-        del self.listeners_events[:]
+                # Process all fds events
+                while self.listeners_events:
+                    listener = self.listeners_events.popleft()
+                    if self.debug_blocking:
+                        self.block_detect_pre()
+                    try:
+                        # call on fd
+                        listener.cb(listener.fileno)
+                    except self.SYSTEM_EXCEPTIONS:
+                        raise
+                    except:
+                        self.squelch_exception(listener.fileno, sys.exc_info())
+                        support.clear_sys_exc_info()
+                    if self.debug_blocking:
+                        self.block_detect_post()
 
-        self.running = False
-        self.stopping = False
+                # simplify memory de-allocations by method's scope destructor
+                loop_ops()
+            else:
+                del self.timers[:]
+                del self.next_timers[:]
+                del self.listeners_events[:]
+        finally:
+            self.running = False
+            self.stopping = False
         #
 
     def run_loop_ops(self):
-        # Ditch all closed fds first.
-        while self.closed:
-            self.close_one(self.closed.pop(-1))
-
-        # Process on fd event at a time
-        while self.listeners_events:
-            listener = self.listeners_events.popleft()
-            if self.debug_blocking:
-                self.block_detect_pre()
-            try:
-                # call on fd
-                listener.cb(listener.fileno)
-            except self.SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                self.squelch_exception(listener.fileno, sys.exc_info())
-                support.clear_sys_exc_info()
-            if self.debug_blocking:
-                self.block_detect_post()
 
         timers = self.timers
         # Assign new timers

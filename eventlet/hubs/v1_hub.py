@@ -46,13 +46,15 @@ class BaseHub(HubBase):
                 sleep_time = fire_timers(self.clock())
 
                 if sleep_time is not None:
-                    sleep_time = sleep_time - self.clock()
+                    # sleep time is an adjusted due time
+                    sleep_time -= self.clock()
                     if sleep_time < 0:
                         sleep_time = 0
                 else:
                     sleep_time = self.default_sleep()
 
                 wait(sleep_time)
+
                 # Process all fds events
                 while listeners_events:
                     process_listener_event(listeners_events.popleft())
@@ -63,7 +65,7 @@ class BaseHub(HubBase):
             self.running = False
             self.stopping = False
         #
-            
+
     def prepare_timers(self):
         pass
 
