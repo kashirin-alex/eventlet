@@ -98,9 +98,8 @@ class HubBase(HubSkeleton):
         #
 
     def add_fd_event_error(self, fileno):
-        pass
-        # self.add_fd_event_read(fileno)
-        # self.add_fd_event_write(fileno)
+        self.add_fd_event_read(fileno)
+        self.add_fd_event_write(fileno)
         #
 
     def _obsolete(self, fileno):
@@ -171,11 +170,10 @@ class HubBase(HubSkeleton):
         only."""
         for evtype in event_types:
             l = self.listeners[evtype].pop(fileno, None)
-            if l and not l.spent:
+            if l:
                 self.add_listener_event(l)
             for l in self.secondaries[evtype].pop(fileno, []):
-                if not l.spent:
-                    self.add_listener_event(l)
+                self.add_listener_event(l)
         #
 
     @staticmethod
