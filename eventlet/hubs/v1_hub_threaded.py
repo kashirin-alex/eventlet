@@ -122,8 +122,11 @@ class BaseHub(HubBase):
             return
         sleep_time = exp - self.clock()
         if sleep_time > 0:
+            if self.next_timers and self.exist_listeners():
+                ev_sleep(0)
+                return
             sleep_time += self.delay
-            if sleep_time <= 0 or self.next_timers:
+            if sleep_time <= 0:
                 self.delay = 0  # preserving delay can cause a close loop on a long delay
                 ev_sleep(0)
                 return

@@ -44,6 +44,9 @@ class HubBase(HubSkeleton):
         return fileno in self.listeners[WRITE]
         #
 
+    def exist_listeners(self):
+        return bool(self.listeners[WRITE] or self.listeners[READ])
+
     def add(self, *args):
         return self.add_listener(*args)
         #
