@@ -90,6 +90,7 @@ class Hub(BaseHub):
             presult = self.poll.poll(self.DEFAULT_SLEEP)
         except (IOError, select.error) as e:
             if support.get_errno(e) == errno.EINTR:
+                ev_sleep(seconds)
                 return
             raise
         except self.SYSTEM_EXCEPTIONS:
