@@ -75,11 +75,9 @@ class BaseHub(HubBase):
             self.close_one(self.closed.pop(-1))
 
         # Process on fd event at a time
-        while self.listeners_events:
+        if self.listeners_events:
             listener = self.listeners_events.popleft()
             print ('yes events', len(self.listeners_events), listener.fileno, listener.spent)
-            if listener.spent:
-                continue
             if self.debug_blocking:
                 self.block_detect_pre()
             try:
