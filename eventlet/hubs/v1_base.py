@@ -170,11 +170,11 @@ class HubBase(HubSkeleton):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
         for evtype in event_types:
-            l = self.listeners[evtype].pop(fileno)
+            l = self.listeners[evtype].pop(fileno, None)
             if l:
-                self.add_listener_event((evtype, fileno, l))
+                self.add_listener_event(l)
             for l in self.secondaries[evtype].pop(fileno, []):
-                self.add_listener_event((evtype, fileno, l))
+                self.add_listener_event(l)
         #
 
     @staticmethod
