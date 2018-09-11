@@ -128,8 +128,8 @@ def hub_prevent_multiple_readers(state=True):
     But if you really know what you are doing you can change the state
     to ``False`` to stop the hub from protecting against this mistake.
     """
-    from eventlet.hubs import hub
-    hub.g_prevent_multiple_readers = state
+    from eventlet import hubs
+    hubs.get_hub().g_prevent_multiple_readers = state
 
 
 def hub_exceptions(state=True):

@@ -1,7 +1,7 @@
 import errno
 
 from eventlet import patcher
-from eventlet.hubs import hub
+from eventlet.hubs.hub_v1 import BaseHub
 from eventlet import support
 
 select = patcher.original('select')
@@ -13,30 +13,32 @@ def is_available():
 EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT
-READ = hub.READ
-WRITE = hub.WRITE
 
 
-class Hub(hub.BaseHub):
+class Hub(BaseHub):
     def __init__(self, clock=None):
         super(Hub, self).__init__(clock)
         self.poll = select.poll()
 
-    def add(self, evtype, fileno, cb, tb, mac):
-        listener = super(Hub, self).add(evtype, fileno, cb, tb, mac)
-        self.register(fileno, new=True)
+    def add(self, *args):
+        """ *args: evtype, fileno, cb, tb, mac """
+        listener = self.add_listener(*args)
+        self.register(args[1], new=True)
         return listener
+        #
 
     def remove(self, listener):
-        super(Hub, self).remove(listener)
+        if not listener.spent:
+            self.remove_listener(listener)
         self.register(listener.fileno)
+        #
 
     def register(self, fileno, new=False):
         mask = 0
 
-        if self.listeners[READ].get(fileno):
+        if self.listeners[self.READ].get(fileno):
             mask |= READ_MASK | EXC_MASK
-        if self.listeners[WRITE].get(fileno):
+        if self.listeners[self.WRITE].get(fileno):
             mask |= WRITE_MASK | EXC_MASK
         try:
             if mask:
@@ -60,13 +62,14 @@ class Hub(hub.BaseHub):
             raise
 
     def remove_descriptor(self, fileno):
-        super(Hub, self).remove_descriptor(fileno)
+        self.remove_descriptor_from_listeners(fileno)
         try:
             self.poll.unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
             # raised if we try to remove a fileno that was
             # already removed/invalid
             pass
+        #
 
     def do_poll(self, seconds):
         # poll.poll expects integral milliseconds
@@ -94,7 +97,7 @@ class Hub(hub.BaseHub):
                 self.listeners_events.append((None, fileno))
                 continue
             if event & READ_MASK:
-                self.listeners_events.append((READ, fileno))
+                self.listeners_events.append((self.READ, fileno))
             if event & WRITE_MASK:
-                self.listeners_events.append((WRITE, fileno))
+                self.listeners_events.append((self.WRITE, fileno))
 

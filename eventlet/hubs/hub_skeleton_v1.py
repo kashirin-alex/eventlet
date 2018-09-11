@@ -32,9 +32,6 @@ else:
         arm_alarm = alarm_signal
 
 
-SYSTEM_EXCEPTIONS = (KeyboardInterrupt, SystemExit)
-
-
 def closed_callback(fileno):
     """ Used to de-fang a callback that may be triggered by a loop in BaseHub.wait
     """
@@ -102,7 +99,11 @@ class DebugListener(FdListener):
     __str__ = __repr__
 
 
-class HubSkeletonV1(object):
+
+class HubSkeleton(object):
+    """ HubSkeleton class for easing the implementation of subclasses to greenlet, debug and Listener"""
+
+    SYSTEM_EXCEPTIONS = (KeyboardInterrupt, SystemExit)
 
     def __init__(self, clock=None):
         self.clock = default_clock if clock is None else clock
@@ -116,8 +117,10 @@ class HubSkeletonV1(object):
         self.debug_blocking = False
         self.debug_blocking_resolution = 1
         self._old_signal_handler = None
+        self.g_prevent_multiple_readers = True
         #
 
+    # Not Implemented
     def run(self, *a, **kw):
         raise NotImplementedError("Implement this in a subclass")
         #
@@ -227,6 +230,7 @@ class HubSkeletonV1(object):
             support.clear_sys_exc_info()
         #
 
+    # Not Implemented
     def add_timer(self, timer):
         raise NotImplementedError("Implement this in a subclass")
         #
