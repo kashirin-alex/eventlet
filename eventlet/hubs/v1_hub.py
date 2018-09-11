@@ -54,7 +54,7 @@ class BaseHub(HubBase):
                 wait(sleep_time)
                 # Process all fds events
                 while listeners_events:
-                    process_listener_event(*listeners_events.popleft())
+                    process_listener_event(listeners_events.popleft())
 
             else:
                 del self.timers[:]
@@ -100,27 +100,16 @@ class BaseHub(HubBase):
                 self.block_detect_post()
         #
 
-    def process_listener_event(self, evtype, fileno):
+    def process_listener_event(self, listener):
         if self.debug_blocking:
             self.block_detect_pre()
 
         try:
-            if evtype is not None:
-                l = self.listeners[evtype].get(fileno)
-                if l is not None:
-                    l.cb(fileno)
-            else:
-                l = self.listeners[self.READ].get(fileno)
-                if l is not None:
-                    l.cb(fileno)
-                l = self.listeners[self.WRITE].get(fileno)
-                if l is not None:
-                    l.cb(fileno)
-
+            listener.cb(listener.fileno)
         except self.SYSTEM_EXCEPTIONS:
             raise
         except:
-            self.squelch_exception(fileno, sys.exc_info())
+            self.squelch_exception(listener.fileno, sys.exc_info())
             support.clear_sys_exc_info()
 
         if self.debug_blocking:
