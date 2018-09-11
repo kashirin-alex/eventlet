@@ -82,14 +82,12 @@ class BaseHub(HubBase):
                         ev_sleep(0)
 
                     print ('events', len(listeners_events), sleep_time, len(timers))
+                    # goes mils of fd events, ?
                     wait(sleep_time)
                     wait_clear()
                 else:
-                    listeners = []
                     while listeners_events:
-                        listeners.append(listeners_events_popleft())
-                    for l in listeners:
-                        process_listener_event(l)
+                        process_listener_event(listeners_events_popleft())
 
             else:
                 del self.timers[:]
