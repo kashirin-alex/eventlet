@@ -1,5 +1,4 @@
 import errno
-import sys
 
 import eventlet
 from eventlet import support

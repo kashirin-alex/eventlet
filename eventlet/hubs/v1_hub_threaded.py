@@ -1,8 +1,12 @@
+import heapq
 import eventlet
 from eventlet.hubs.v1_base import HubBase
 
 orig_threading = eventlet.patcher.original('threading')
 ev_sleep = eventlet.patcher.original('time').sleep
+
+heappush = heapq.heappush
+heappop = heapq.heappop
 
 
 class BaseHub(HubBase):
@@ -47,47 +51,82 @@ class BaseHub(HubBase):
         wait = self.event_notifier.wait
         wait_clear = self.event_notifier.clear
 
-        listeners_events = self.listeners_events
-        listeners_events_popleft = self.listeners_events.popleft
-        process_listener_event = self.process_listener_event
+        processors = (self.process_timer_event, self.process_listener_event)
 
         closed = self.closed
         closed_pop = self.closed.pop
         close_one = self.close_one
 
-        timers = self.timers
-        prepare_timers = self.prepare_timers
-        fire_timers = self.fire_timers
-
+        events = self.timers
+        next_events = self.next_timers
+        next_events_pop = next_events.pop
+        delay = 0
         try:
             while not self.stopping:
+                chk = True
+                while next_events or events:
 
-                # Ditch all closed fds first.
-                while closed:
-                    close_one(closed_pop(-1))
+                    # Ditch all closed fds first.
+                    while closed:
+                        close_one(closed_pop(-1))
 
-                prepare_timers()
-                fire_timers(self.clock())
-                prepare_timers()
-
-                if not listeners_events:
-                    if timers:
-                        sleep_time = timers[0][0] - self.clock() + self.timer_delay
-                        if sleep_time < 0:
-                            sleep_time = 0
+                    if chk and not next_events:
+                        break
+                    while next_events:
+                        event = next_events_pop(-1)
+                        if hasattr(event, 'scheduled_time'):
+                            # timer
+                            if not event.called:
+                                heappush(events, (event.scheduled_time, event))
                         else:
-                            ev_sleep(0)
-                    else:
-                        sleep_time = self.default_sleep()
-                        ev_sleep(0)
+                            # listener event
+                            ts, listener = event
+                            heappush(events, (ts, listener))
+                    if not events:
+                        break
 
-                    print ('events', len(listeners_events), sleep_time, len(timers))
-                    # goes mils of fd events, ?
-                    wait(sleep_time)
-                    wait_clear()
+                    # current evaluated event
+                    exp, event = events[0]
+
+                    if isinstance(event, self.lclass):
+                        typ = 1
+                    else:
+                        if event.called:
+                            # remove called/cancelled timer
+                            heappop(events)
+                            continue
+                        typ = 0
+
+                    due = exp - self.clock()
+                    if due > 0:
+                        chk = False
+                        continue
+                    delay = (due + delay) / 2  # delay is negative value
+
+                    # remove evaluated event
+                    heappop(events)
+
+                    # process event
+                    processors[typ](event)
+
+                    # check for events
+                    # if readers or writers:
+                    #    wait(0)
+
+                # wait for events , until due timer or notified for fd events
+                if events:
+                    sleep_time = events[0][0] - self.clock() + delay
+                    if sleep_time <= 0:
+                        ev_sleep(0)
+                        continue
                 else:
-                    while listeners_events:
-                        process_listener_event(listeners_events_popleft())
+                    ev_sleep(0)
+                    sleep_time = self.DEFAULT_SLEEP
+
+                print ('events', sleep_time, len(events))
+                # goes mils of fd events, ?
+                wait(sleep_time)
+                wait_clear()
 
             else:
                 del self.timers[:]
@@ -97,4 +136,8 @@ class BaseHub(HubBase):
         finally:
             self.running = False
             self.stopping = False
+        #
+
+    def add_listener_event(self, listener):
+        self.add_next_timer((self.clock(), listener))
         #

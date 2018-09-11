@@ -225,6 +225,21 @@ class HubBase(HubSkeleton):
             self.block_detect_post()
         #
 
+    def process_timer_event(self, timer):
+        if self.debug_blocking:
+            self.block_detect_pre()
+        try:
+            timer()
+        except self.SYSTEM_EXCEPTIONS:
+            raise
+        except:
+            if self.debug_exceptions:
+                self.squelch_generic_exception(sys.exc_info())
+            support.clear_sys_exc_info()
+        if self.debug_blocking:
+            self.block_detect_post()
+        #
+
     @staticmethod
     def default_sleep():
         return 60.0
