@@ -64,7 +64,7 @@ class BaseHub(HubBase):
         try:
             while not self.stopping:
                 chk = True
-                while chk or next_events:
+                while not self.stopping and (chk or next_events):
 
                     # Ditch all closed fds first.
                     while closed:
