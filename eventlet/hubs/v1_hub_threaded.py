@@ -78,6 +78,7 @@ class BaseHub(HubBase):
 
         # Process all fds events
         while self.listeners_events:
+            print ('events', len(self.listeners_events))
             listener = self.listeners_events.popleft()
             if self.debug_blocking:
                 self.block_detect_pre()
@@ -128,8 +129,6 @@ class BaseHub(HubBase):
                 # wait for fd signals
                 self.event_notifier.wait(sleep_time)
                 self.event_notifier.clear()
-
-            print ('events', len(self.listeners_events))
             return
         self.timer_delay = (sleep_time + self.timer_delay) / 2  # delay is negative value
 
