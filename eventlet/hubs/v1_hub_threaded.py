@@ -68,7 +68,6 @@ class BaseHub(HubBase):
         prepare_timers = self.prepare_timers
         fire_timers = self.fire_timers
 
-
         try:
             while not self.stopping:
                 debug_blocking = self.debug_blocking
@@ -82,7 +81,7 @@ class BaseHub(HubBase):
                 prepare_timers()
 
                 if timers:
-                    sleep_time = timers[0][0]-self.clock()+self.timer_delay
+                    sleep_time = timers[0][0]-self.clock()  # +self.timer_delay
                     if sleep_time < 0:
                         sleep_time = 0
                     # else:
