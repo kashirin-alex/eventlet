@@ -1,15 +1,8 @@
-import heapq
-import sys
-
 import eventlet
-from eventlet import support
 from eventlet.hubs.v1_base import HubBase
 
 orig_threading = eventlet.patcher.original('threading')
 ev_sleep = eventlet.patcher.original('time').sleep
-
-heappush = heapq.heappush
-heappop = heapq.heappop
 
 
 class BaseHub(HubBase):
@@ -75,7 +68,6 @@ class BaseHub(HubBase):
 
                 prepare_timers()
                 fire_timers(self.clock())
-                prepare_timers()
 
                 if not listeners_events:
                     if timers:
