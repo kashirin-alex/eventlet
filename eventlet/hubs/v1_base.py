@@ -233,10 +233,12 @@ class HubBase(HubSkeleton):
         #
 
     def prepare_timers(self):
-        while self.next_timers:
-            timer = self.next_timers.pop(-1)
+        timers = self.timers
+        next_timers = self.next_timers
+        while next_timers:
+            timer = next_timers.pop(-1)
             if not timer.called:
-                heappush(self.timers, (timer.scheduled_time, timer))
+                heappush(timers, (timer.scheduled_time, timer))
         #
 
     def fire_timers(self, when):
