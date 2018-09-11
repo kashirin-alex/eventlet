@@ -51,8 +51,9 @@ class Hub(BaseHub):
                     return
                 try:
                     self.poll.modify(fileno, mask)
-                except (IOError, OSError):
+                except (IOError, OSError) as e:
                     self.poll.register(fileno, mask)
+                    print (e)
                 return
             try:
                 self.poll.unregister(fileno)
