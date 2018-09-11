@@ -75,9 +75,8 @@ class BaseHub(HubBase):
             self.close_one(self.closed.pop(-1))
 
         # Process on fd event at a time
-        if self.listeners_events:
+        while self.listeners_events:
             listener = self.listeners_events.popleft()
-            print ('yes events', len(self.listeners_events), listener.fileno, listener.spent)
             if self.debug_blocking:
                 self.block_detect_pre()
             try:
@@ -114,6 +113,8 @@ class BaseHub(HubBase):
             return
         sleep_time = exp - self.clock()
         if sleep_time > 0:
+
+            print (' events', len(self.listeners_events))
             # if sleep_time + self.timer_delay < 0:
             #    print ('timer_delay',  sleep_time+self.timer_delay)
             #    self.timer_delay = 0
