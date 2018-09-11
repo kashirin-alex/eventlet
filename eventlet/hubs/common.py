@@ -2,7 +2,8 @@ import os
 import traceback
 import signal
 import eventlet
-
+import sys
+from eventlet import support
 
 if os.environ.get('EVENTLET_CLOCK'):
     mod = os.environ.get('EVENTLET_CLOCK').rsplit('.', 1)
@@ -99,3 +100,133 @@ class DebugListener(FdListener):
             self.greenlet,
             ''.join(self.where_called))
     __str__ = __repr__
+
+
+class HubSkeletonV1(object):
+
+    def __init__(self, clock=None):
+        self.clock = default_clock if clock is None else clock
+        self.lclass = FdListener
+
+        self.greenlet = support.greenlets.greenlet(self.run)
+        self.stopping = False
+        self.running = False
+
+        self.debug_exceptions = False
+        self.debug_blocking = False
+        self.debug_blocking_resolution = 1
+        self._old_signal_handler = None
+        #
+
+    def run(self, *a, **kw):
+        raise NotImplementedError("Implement this in a subclass")
+        #
+
+    def switch(self):
+        cur = eventlet.getcurrent()
+        assert cur is not self.greenlet, 'Cannot switch to MAINLOOP from MAINLOOP'
+        switch_out = getattr(cur, 'switch_out', None)
+        if switch_out is not None:
+            try:
+                switch_out()
+            except:
+                if self.debug_exceptions:
+                    self.squelch_generic_exception(sys.exc_info())
+        self.ensure_greenlet()
+        try:
+            if self.greenlet.parent is not cur:
+                cur.parent = self.greenlet
+        except ValueError:
+            pass  # gets raised if there is a greenlet parent cycle
+        support.clear_sys_exc_info()
+        return self.greenlet.switch()
+        #
+
+    def ensure_greenlet(self):
+        if not self.greenlet.dead:
+            return
+        # create new greenlet sharing same parent as original
+        new = support.greenlets.greenlet(self.run, self.greenlet.parent)
+        # need to assign as parent of old greenlet
+        # for those greenlets that are currently
+        # children of the dead hub and may subsequently
+        # exit without further switching to hub.
+        # - waiting_thread will continue to add fd events to the listeners_events
+        # or start new Thread depends on the state of self.events_waiter with the new greenlet
+        self.greenlet.parent = new
+        self.greenlet = new
+        #
+
+    def abort(self, wait=False):
+        """Stop the runloop. If run is executing, it will exit after
+        completing the next runloop iteration.
+        Set *wait* to True to cause abort to switch to the hub immediately and
+        wait until it's finished processing.  Waiting for the hub will only
+        work from the main greenthread; all other greenthreads will become
+        unreachable.
+        """
+        if self.running:
+            self.stopping = True
+        if wait:
+            assert self.greenlet is not eventlet.getcurrent(
+            ), "Can't abort with wait from inside the hub's greenlet."
+            # schedule an immediate timer just so the hub doesn't sleep
+            self.schedule_call_global(0, lambda: None)
+            # switch to it; when done the hub will switch back to its parent,
+            # the main greenlet
+            self.switch()
+        #
+
+    def schedule_call_local(self, seconds, cb, *args, **kw):
+        """Schedule a callable to be called after 'seconds' seconds have
+        elapsed. Cancel the timer if greenlet has exited.
+            seconds: The number of seconds to wait.
+            cb: The callable to call after the given time.
+            *args: Arguments to pass to the callable when called.
+            **kw: Keyword arguments to pass to the callable when called.
+        """
+        return self.add_timer(eventlet.LocalTimer(seconds, cb, *args, **kw))
+
+    def schedule_call_global(self, seconds, cb, *args, **kw):
+        """Schedule a callable to be called after 'seconds' seconds have
+        elapsed. The timer will NOT be canceled if the current greenlet has
+        exited before the timer fires.
+            seconds: The number of seconds to wait.
+            cb: The callable to call after the given time.
+            *args: Arguments to pass to the callable when called.
+            **kw: Keyword arguments to pass to the callable when called.
+        """
+        return self.add_timer(eventlet.Timer(seconds, cb, *args, **kw))
+
+    def block_detect_pre(self):
+        # shortest alarm we can possibly raise is one second
+        tmp = signal.signal(signal.SIGALRM, alarm_handler)
+        if tmp != alarm_handler:
+            self._old_signal_handler = tmp
+
+        arm_alarm(self.debug_blocking_resolution)
+        #
+
+    def block_detect_post(self):
+        if (hasattr(self, "_old_signal_handler") and
+                self._old_signal_handler):
+            signal.signal(signal.SIGALRM, self._old_signal_handler)
+        signal.alarm(0)
+        #
+
+    def set_debug_listeners(self, value):
+        self.lclass = DebugListener if value else FdListener
+
+    def set_timer_exceptions(self, value):
+        self.debug_exceptions = value
+
+    def squelch_generic_exception(self, exc_info):
+        if self.debug_exceptions:
+            traceback.print_exception(*exc_info)
+            sys.stderr.flush()
+            support.clear_sys_exc_info()
+        #
+
+    def add_timer(self, timer):
+        raise NotImplementedError("Implement this in a subclass")
+        #
