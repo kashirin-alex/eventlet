@@ -55,30 +55,10 @@ class BaseHub(HubBase):
             self.events_waiter = orig_threading.Thread(target=self.waiting_thread)
             self.events_waiter.start()
         self.event_notifier.set()
+
         try:
             loop_ops = self.run_loop_ops
             while not self.stopping:
-
-                # Ditch all closed fds first.
-                while self.closed:
-                    self.close_one(self.closed.pop(-1))
-
-                # Process all fds events
-                while self.listeners_events:
-                    listener = self.listeners_events.popleft()
-                    if self.debug_blocking:
-                        self.block_detect_pre()
-                    try:
-                        # call on fd
-                        listener.cb(listener.fileno)
-                    except self.SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        self.squelch_exception(listener.fileno, sys.exc_info())
-                        support.clear_sys_exc_info()
-                    if self.debug_blocking:
-                        self.block_detect_post()
-
                 # simplify memory de-allocations by method's scope destructor
                 loop_ops()
             else:
@@ -91,6 +71,26 @@ class BaseHub(HubBase):
         #
 
     def run_loop_ops(self):
+
+        # Ditch all closed fds first.
+        while self.closed:
+            self.close_one(self.closed.pop(-1))
+
+        # Process all fds events
+        while self.listeners_events:
+            listener = self.listeners_events.popleft()
+            if self.debug_blocking:
+                self.block_detect_pre()
+            try:
+                # call on fd
+                listener.cb(listener.fileno)
+            except self.SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                self.squelch_exception(listener.fileno, sys.exc_info())
+                support.clear_sys_exc_info()
+            if self.debug_blocking:
+                self.block_detect_post()
 
         timers = self.timers
         # Assign new timers
@@ -115,14 +115,15 @@ class BaseHub(HubBase):
             return
         sleep_time = exp - self.clock()
         if sleep_time > 0:
-
-            print (' events', len(self.listeners_events))
-            # if sleep_time + self.timer_delay < 0:
-            #    print ('timer_delay',  sleep_time+self.timer_delay)
-            #    self.timer_delay = 0
-            #    ev_sleep(0)
-            #    return
-            if not self.next_timers and not self.listeners_events:
+            sleep_time += self.timer_delay
+            if self.next_timers and sleep_time < 0:
+                print ('next_timers/timer_delay', len(self.next_timers),  sleep_time+self.timer_delay, len(self.listeners_events))
+                self.timer_delay = 0
+                ev_sleep(0)
+                return
+            if not self.listeners_events:
+                if sleep_time < 0:
+                    sleep_time = 0
                 print ('no events, sleep_time', len(self.listeners_events), sleep_time)
                 # wait for fd signals
                 self.event_notifier.wait(sleep_time)
