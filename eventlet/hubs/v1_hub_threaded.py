@@ -78,13 +78,15 @@ class BaseHub(HubBase):
             self.close_one(self.closed.pop(-1))
 
         # Process on fd event at a time
+        if self.listeners_events:
+            print ('yes events', len(self.listeners_events))
         while self.listeners_events:
             # call on fd
             listener = self.listeners_events.popleft()
             if self.debug_blocking:
                 self.block_detect_pre()
             try:
-                print ('yes events', len(self.listeners_events), listener)
+                # print ('yes events', len(self.listeners_events), listener)
                 listener.cb(listener.fileno)
             except self.SYSTEM_EXCEPTIONS:
                 raise
