@@ -21,12 +21,8 @@ class BaseHub(HubBase):
     def __init__(self, clock=None):
         super(BaseHub, self).__init__(clock)
 
-        self.next_timers = []
-        self.add_next_timer = self.next_timers.append
-
         self.event_notifier = orig_threading.Event()
         self.events_waiter = None
-        self.timer_delay = 0
         #
 
     def waiting_thread(self):
@@ -57,8 +53,10 @@ class BaseHub(HubBase):
         self.event_notifier.set()
         wait = self.event_notifier.wait
         wait_clear = self.event_notifier.clear
+
         listeners_events = self.listeners_events
         listeners_events_popleft = self.listeners_events.popleft
+        process_listener_event = self.process_listener_event
 
         closed = self.closed
         closed_pop = self.closed.pop
@@ -81,7 +79,7 @@ class BaseHub(HubBase):
                 prepare_timers()
 
                 if timers:
-                    sleep_time = timers[0][0]-self.clock()  # +self.timer_delay
+                    sleep_time = timers[0][0] - self.clock() + self.timer_delay
                     if sleep_time < 0:
                         sleep_time = 0
                     # else:
@@ -97,75 +95,14 @@ class BaseHub(HubBase):
 
                 # Process all fds events
                 while listeners_events:
-                    listener = listeners_events_popleft()
-                    if debug_blocking:
-                        self.block_detect_pre()
-                    try:
-                        listener.cb(listener.fileno)
-                    except self.SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        self.squelch_exception(listener.fileno, sys.exc_info())
-                        support.clear_sys_exc_info()
-                    if debug_blocking:
-                        self.block_detect_post()
+                    process_listener_event(listeners_events_popleft())
 
             else:
                 del self.timers[:]
                 del self.next_timers[:]
                 del self.listeners_events[:]
+                del self.closed[:]
         finally:
             self.running = False
             self.stopping = False
         #
-
-    def prepare_timers(self):
-        # Assign new timers
-        while self.next_timers:
-            timer = self.next_timers.pop(-1)
-            if not timer.called:
-                heappush(self.timers, (timer.scheduled_time, timer))
-        #
-
-    def fire_timers(self, when):
-        debug_blocking = self.debug_blocking
-        timers = self.timers
-
-        while timers:
-            # current evaluated
-            exp, timer = timers[0]
-            if timer.called:
-                # remove called/cancelled timer
-                heappop(timers)
-                continue
-            due = exp - when  # self.clock()
-            if due > 0:
-                return
-            self.timer_delay += due  # delay is negative value
-            self.timer_delay /= 2
-
-            # remove evaluated event
-            heappop(timers)
-
-            if debug_blocking:
-                self.block_detect_pre()
-            try:
-                timer()
-            except self.SYSTEM_EXCEPTIONS:
-                raise
-            except:
-                if self.debug_exceptions:
-                    self.squelch_generic_exception(sys.exc_info())
-                support.clear_sys_exc_info()
-
-            if debug_blocking:
-                self.block_detect_post()
-        #
-
-    def add_timer(self, timer):
-        timer.scheduled_time = self.clock() + timer.seconds
-        self.add_next_timer(timer)
-        return timer
-
-    def get_timers_count(self):
-        return len(self.timers)+len(self.next_timers)

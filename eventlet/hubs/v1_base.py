@@ -2,14 +2,19 @@ import errno
 import sys
 import traceback
 from collections import deque
+import heapq
 
 import eventlet
+from eventlet import support
 from eventlet.hubs.v1_skeleton import HubSkeleton
 
 # EVENT TYPE INDEX FOR listeners TUPLE
 READ = 0
 WRITE = 1
 event_types = (READ, WRITE)
+
+heappush = heapq.heappush
+heappop = heapq.heappop
 
 
 class HubBase(HubSkeleton):
@@ -27,6 +32,9 @@ class HubBase(HubSkeleton):
         self.closed = []
 
         self.timers = []
+        self.next_timers = []
+        self.add_next_timer = self.next_timers.append
+        self.timer_delay = 0
 
         self.listeners_events = deque()
         self.add_listener_event = self.listeners_events.append
@@ -200,9 +208,71 @@ class HubBase(HubSkeleton):
     def wait(self, seconds=None):
         raise NotImplementedError("Implement this in a subclass")
 
+    def process_listener_event(self, listener):
+        if self.debug_blocking:
+            self.block_detect_pre()
+        try:
+            listener.cb(listener.fileno)
+        except self.SYSTEM_EXCEPTIONS:
+            raise
+        except:
+            self.squelch_exception(listener.fileno, sys.exc_info())
+            support.clear_sys_exc_info()
+        if self.debug_blocking:
+            self.block_detect_post()
+        #
+
     @staticmethod
     def default_sleep():
         return 60.0
+
+    def add_timer(self, timer):
+        timer.scheduled_time = self.clock() + timer.seconds
+        self.add_next_timer(timer)
+        return timer
+        #
+
+    def prepare_timers(self):
+        while self.next_timers:
+            timer = self.next_timers.pop(-1)
+            if not timer.called:
+                heappush(self.timers, (timer.scheduled_time, timer))
+        #
+
+    def fire_timers(self, when):
+        debug_blocking = self.debug_blocking
+        timers = self.timers
+
+        while timers:
+            # current evaluated
+            exp, timer = timers[0]
+            if timer.called:
+                # remove called/cancelled timer
+                heappop(timers)
+                continue
+            due = exp - when  # self.clock()
+            if due > 0:
+                return
+            self.timer_delay += due  # delay is negative value
+            self.timer_delay /= 2
+
+            # remove evaluated event
+            heappop(timers)
+
+            if debug_blocking:
+                self.block_detect_pre()
+            try:
+                timer()
+            except self.SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                if self.debug_exceptions:
+                    self.squelch_generic_exception(sys.exc_info())
+                support.clear_sys_exc_info()
+
+            if debug_blocking:
+                self.block_detect_post()
+        #
 
     # for debugging:
 
@@ -213,7 +283,7 @@ class HubBase(HubSkeleton):
         return self.listeners[WRITE].values()
 
     def get_timers_count(self):
-        return len(self.timers)
+        return len(self.timers)+len(self.next_timers)
 
     def get_listeners_count(self):
         return len(self.listeners[READ]),  len(self.listeners[WRITE])
