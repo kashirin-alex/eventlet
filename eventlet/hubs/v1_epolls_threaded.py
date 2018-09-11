@@ -25,10 +25,6 @@ class Hub(BaseHub):
         super(Hub, self).__init__(clock)
 
         self.poll = select.epoll()
-        self.do_poll = self.poll.poll
-        self.poll_register = self.poll.register
-        self.poll_modify = self.poll.modify
-        self.poll_unregister = self.poll.unregister
         #
 
     def add(self, *args):
@@ -53,15 +49,15 @@ class Hub(BaseHub):
         try:
             if mask:
                 if new:
-                    self.poll_register(fileno, mask)
+                    self.poll.register(fileno, mask)
                     return
                 try:
-                    self.poll_modify(fileno, mask)
+                    self.poll.modify(fileno, mask)
                 except (IOError, OSError):
-                    self.poll_register(fileno, mask)
+                    self.poll.register(fileno, mask)
                 return
             try:
-                self.poll_unregister(fileno)
+                self.poll.unregister(fileno)
             except (KeyError, IOError, OSError):
                 # raised if we try to remove a fileno that was
                 # already removed/invalid
@@ -81,7 +77,7 @@ class Hub(BaseHub):
     def remove_descriptor(self, fileno):
         self.remove_descriptor_from_listeners(fileno)
         try:
-            self.poll_unregister(fileno)
+            self.poll.unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
             # raised if we try to remove a fileno that was
             # already removed/invalid
@@ -90,7 +86,7 @@ class Hub(BaseHub):
 
     def wait(self, seconds=3):
         try:
-            presult = self.do_poll(self.DEFAULT_SLEEP)
+            presult = self.poll.poll(self.DEFAULT_SLEEP)
         except self.SYSTEM_EXCEPTIONS:
             raise
         except:
