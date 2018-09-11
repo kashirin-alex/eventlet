@@ -51,7 +51,7 @@ class HubBase(HubSkeleton):
         return self.add_listener(*args)
         #
 
-    def add_listener(self, *args):
+    def add_listener(self, evtype, fileno, cb, tb, mark_as_closed):
         """ args: evtype, fileno, cb, tb, mark_as_closed
         Signals an intent to or write a particular file descriptor.
         The *evtype* argument is either the constant READ or WRITE.
@@ -64,8 +64,7 @@ class HubBase(HubSkeleton):
         prepare a Python object as being closed, pre-empting further
         close operations from accidentally shutting down the wrong OS thread.
         """
-        listener = self.lclass(*args)
-        evtype, fileno = args[0:2]
+        listener = self.lclass(evtype, fileno, cb, tb, mark_as_closed)
         bucket = self.listeners[evtype]
         if fileno in bucket:
             if self.g_prevent_multiple_readers:
@@ -78,7 +77,7 @@ class HubBase(HubSkeleton):
                     "this error, call "
                     "eventlet.debug.hub_prevent_multiple_readers(False) - MY THREAD=%s; "
                     "THAT THREAD=%s" % (
-                        evtype, fileno, evtype, args[2], bucket[fileno]))
+                        evtype, fileno, evtype, cb, bucket[fileno]))
             # store off the second listener in another structure
             self.secondaries[evtype].setdefault(fileno, []).append(listener)
         else:
@@ -111,12 +110,10 @@ class HubBase(HubSkeleton):
 
         found = False
         for evtype in event_types:
-            bucket = self.secondaries[evtype]
-            if fileno in bucket:
-                for listener in bucket.pop(fileno):
-                    found = True
-                    self.closed.append(listener)
-                    listener.defang()
+            for listener in self.secondaries[evtype].pop(fileno, []):
+                found = True
+                self.closed.append(listener)
+                listener.defang()
 
             # For the primary listeners, we actually need to call remove,
             # which may modify the underlying OS polling objects.

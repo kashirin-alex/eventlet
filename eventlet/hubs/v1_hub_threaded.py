@@ -59,10 +59,7 @@ class BaseHub(HubBase):
         loop_ops = self.run_loop_ops
         while not self.stopping:
             # simplify memory de-allocations by method's scope destructor
-            try:
-                loop_ops()
-            except Exception as e:
-                print (e, sys.exc_info())
+            loop_ops()
 
         del self.timers[:]
         del self.next_timers[:]
@@ -84,6 +81,8 @@ class BaseHub(HubBase):
         while self.listeners_events:
             # call on fd
             listener = self.listeners_events.popleft()
+            # if listener.spent:
+            #    continue
             if self.debug_blocking:
                 self.block_detect_pre()
             try:
@@ -119,7 +118,7 @@ class BaseHub(HubBase):
             return
         sleep_time = exp - self.clock()
         if sleep_time > 0:
-            if self.next_timers or sleep_time+self.timer_delay < 0:
+            if self.next_timers and sleep_time+self.timer_delay < 0:
                 print ('next_timers, sleep_time', len(self.next_timers), sleep_time+self.timer_delay)
                 ev_sleep(0)
                 return
