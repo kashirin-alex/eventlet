@@ -79,7 +79,6 @@ class BaseHub(HubBase):
 
         # Process on fd event at a time
         while self.listeners_events:
-            print ('yes events', len(self.listeners_events))
             # call on fd
             evtype, fileno = self.listeners_events.popleft()
             if self.debug_blocking:
@@ -89,11 +88,14 @@ class BaseHub(HubBase):
                     l = self.listeners[evtype].get(fileno)
                     if l is not None:
                         l.cb(fileno)
+                    print ('yes events', len(self.listeners_events), evtype, fileno, l)
                 else:
                     l = self.listeners[self.WRITE].get(fileno)
+                    print ('yes events', len(self.listeners_events), evtype, fileno, l)
                     if l is not None:
                         l.cb(fileno)
                     l = self.listeners[self.READ].get(fileno)
+                    print ('yes events', len(self.listeners_events), evtype, fileno, l)
                     if l is not None:
                         l.cb(fileno)
             except self.SYSTEM_EXCEPTIONS:
