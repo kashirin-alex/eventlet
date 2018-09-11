@@ -29,12 +29,12 @@ class BaseHub(HubBase):
         #
 
     def waiting_thread(self):
-        no_waiters = self.event_notifier.is_set
+        is_set = self.event_notifier.is_set
         notify = self.event_notifier.set
         wait = self.wait
         while not self.stopping:
             wait()
-            if not no_waiters():
+            if not is_set():
                 notify()
         #
 
@@ -73,6 +73,13 @@ class BaseHub(HubBase):
         while self.closed:
             self.close_one(self.closed.pop(-1))
 
+        timers = self.timers
+        # Assign new timers
+        while self.next_timers:
+            timer = self.next_timers.pop(-1)
+            if not timer.called:
+                heappush(timers, (timer.scheduled_time, timer))
+
         # Process all fds events
         while self.listeners_events:
             # call on fd
@@ -99,12 +106,6 @@ class BaseHub(HubBase):
             if self.debug_blocking:
                 self.block_detect_post()
 
-        timers = self.timers
-        # Assign new timers
-        while self.next_timers:
-            timer = self.next_timers.pop(-1)
-            if not timer.called:
-                heappush(timers, (timer.scheduled_time, timer))
         if not timers:
             if not self.listeners_events:
                 # wait for fd signals
@@ -120,6 +121,9 @@ class BaseHub(HubBase):
             return
         sleep_time = exp - self.clock()
         if sleep_time > 0:
+            if self.next_timers:
+                ev_sleep(0)
+                return
             if not self.listeners_events:
                 # wait for fd signals
                 self.event_notifier.wait(sleep_time)
