@@ -59,7 +59,10 @@ class BaseHub(HubBase):
         loop_ops = self.run_loop_ops
         while not self.stopping:
             # simplify memory de-allocations by method's scope destructor
-            loop_ops()
+            try:
+                loop_ops()
+            except Exception as e:
+                print (e, sys.exc_info())
 
         del self.timers[:]
         del self.next_timers[:]
