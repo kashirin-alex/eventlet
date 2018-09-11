@@ -169,9 +169,9 @@ class HubBase(HubSkeleton):
         for evtype in event_types:
             l = self.listeners[evtype].get(fileno)
             if l:
-                self.add_listener_event((l.evtype, l.fileno))
+                self.add_listener_event((None, l.fileno))
             for l in self.secondaries[evtype].get(fileno, []):
-                self.add_listener_event((l.evtype, l.fileno))
+                self.add_listener_event((None, l.fileno))
         #
 
     @staticmethod
