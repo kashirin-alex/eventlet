@@ -77,10 +77,9 @@ class BaseHub(HubBase):
         while self.closed:
             self.close_one(self.closed.pop(-1))
 
-        # Process all fds events
+        # Process on fd event at a time
         if self.listeners_events:
             print ('yes events', len(self.listeners_events))
-        while self.listeners_events:
             # call on fd
             evtype, fileno = self.listeners_events.popleft()
             if self.debug_blocking:
@@ -113,7 +112,6 @@ class BaseHub(HubBase):
                 heappush(timers, (timer.scheduled_time, timer))
 
         if not timers:
-            ev_sleep(0)
             if not self.listeners_events:
                 print ('no events, timers', len(self.listeners_events))
                 # wait for fd signals
