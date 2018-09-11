@@ -74,6 +74,7 @@ class BaseHub(HubBase):
             self.close_one(self.closed.pop(-1))
 
         # Process all fds events
+        print ('yes events', len(self.listeners_events))
         while self.listeners_events:
             # call on fd
             evtype, fileno = self.listeners_events.popleft()
@@ -108,6 +109,7 @@ class BaseHub(HubBase):
 
         if not timers:
             if not self.listeners_events:
+                print ('no events', len(self.listeners_events))
                 # wait for fd signals
                 self.event_notifier.wait(self.DEFAULT_SLEEP)
                 self.event_notifier.clear()
@@ -121,10 +123,12 @@ class BaseHub(HubBase):
             return
         sleep_time = exp - self.clock()
         if sleep_time > 0:
+            print ('next_timers', len(self.next_timers))
             if self.next_timers:
                 ev_sleep(0)
                 return
             if not self.listeners_events:
+                print ('no events', len(self.listeners_events))
                 # wait for fd signals
                 self.event_notifier.wait(sleep_time)
                 self.event_notifier.clear()
