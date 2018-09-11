@@ -68,6 +68,7 @@ class BaseHub(HubBase):
 
                 prepare_timers()
                 fire_timers(self.clock())
+                prepare_timers()
 
                 if not listeners_events:
                     if timers:
@@ -84,7 +85,11 @@ class BaseHub(HubBase):
                     wait(sleep_time)
                     wait_clear()
                 else:
-                    process_listener_event(listeners_events_popleft())
+                    listeners = []
+                    while listeners_events:
+                        listeners.append(listeners_events_popleft())
+                    for l in listeners:
+                        process_listener_event(l)
 
             else:
                 del self.timers[:]
