@@ -91,6 +91,7 @@ class BaseHub(HubBase):
                     sleep_time = self.default_sleep()
                     ev_sleep(0)
 
+                print ('events', len(listeners_events), sleep_time, len(timers))
                 if not listeners_events:
                     wait(sleep_time)
                     wait_clear()
