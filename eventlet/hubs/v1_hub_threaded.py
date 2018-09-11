@@ -123,8 +123,7 @@ class BaseHub(HubBase):
                     ev_sleep(0)
                     sleep_time = self.DEFAULT_SLEEP
 
-                print ('events', sleep_time, len(events))
-                # goes mils of fd events, ?
+                # print ('events', sleep_time, len(events)) # goes mils of fd events, ?
                 wait(sleep_time)
                 wait_clear()
 
