@@ -236,13 +236,11 @@ class HubBase(HubSkeleton):
         #
 
     def prepare_timers(self):
-        timers = self.timers
-        next_timers = self.next_timers
         pop = self.next_timers.pop
-        while next_timers:
+        while self.next_timers:
             timer = pop(-1)
             if not timer.called:
-                heappush(timers, (timer.scheduled_time, timer))
+                heappush(self.timers, (timer.scheduled_time, timer))
         #
 
     def fire_timers(self, when):
@@ -259,8 +257,7 @@ class HubBase(HubSkeleton):
             due = exp - when  # self.clock()
             if due > 0:
                 return
-            self.timer_delay += due  # delay is negative value
-            self.timer_delay /= 2
+            self.timer_delay = (self.timer_delay + due) / 2  # delay is negative value
 
             # remove evaluated event
             heappop(timers)
