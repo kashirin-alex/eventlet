@@ -76,6 +76,7 @@ class Hub(BaseHub):
         #
 
     def remove_descriptor(self, fileno):
+        print ('removing ', fileno)
         self.remove_descriptor_from_listeners(fileno)
         try:
             self.poll.unregister(fileno)
