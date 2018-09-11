@@ -98,8 +98,9 @@ class HubBase(HubSkeleton):
         #
 
     def add_fd_event_error(self, fileno):
-        self.add_fd_event_read(fileno)
-        self.add_fd_event_write(fileno)
+        pass
+        # self.add_fd_event_read(fileno)
+        # self.add_fd_event_write(fileno)
         #
 
     def _obsolete(self, fileno):
