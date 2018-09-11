@@ -73,13 +73,6 @@ class BaseHub(HubBase):
         while self.closed:
             self.close_one(self.closed.pop(-1))
 
-        timers = self.timers
-        # Assign new timers
-        while self.next_timers:
-            timer = self.next_timers.pop(-1)
-            if not timer.called:
-                heappush(timers, (timer.scheduled_time, timer))
-
         # Process all fds events
         while self.listeners_events:
             # call on fd
@@ -106,6 +99,13 @@ class BaseHub(HubBase):
             if self.debug_blocking:
                 self.block_detect_post()
 
+        timers = self.timers
+        # Assign new timers
+        while self.next_timers:
+            timer = self.next_timers.pop(-1)
+            if not timer.called:
+                heappush(timers, (timer.scheduled_time, timer))
+                
         if not timers:
             if not self.listeners_events:
                 # wait for fd signals
