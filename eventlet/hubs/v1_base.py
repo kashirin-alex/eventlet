@@ -45,7 +45,7 @@ class HubBase(HubSkeleton):
         #
 
     def exist_listeners(self):
-        return bool(self.listeners[WRITE] or self.listeners[READ])
+        return bool(self.listeners[WRITE]) or bool(self.listeners[READ])
 
     def add(self, *args):
         return self.add_listener(*args)
