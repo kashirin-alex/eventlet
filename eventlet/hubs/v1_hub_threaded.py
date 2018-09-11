@@ -79,8 +79,8 @@ class BaseHub(HubBase):
             print ('yes events', len(self.listeners_events))
         while self.listeners_events:
             listener = self.listeners_events.popleft()
-            # if listener.spent:
-            #    continue
+            if listener.spent:
+                continue
             if self.debug_blocking:
                 self.block_detect_pre()
             try:

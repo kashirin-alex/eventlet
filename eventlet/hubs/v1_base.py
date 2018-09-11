@@ -170,10 +170,11 @@ class HubBase(HubSkeleton):
         only."""
         for evtype in event_types:
             l = self.listeners[evtype].pop(fileno, None)
-            if l:
+            if l and not l.spent:
                 self.add_listener_event(l)
             for l in self.secondaries[evtype].pop(fileno, []):
-                self.add_listener_event(l)
+                if not l.spent:
+                    self.add_listener_event(l)
         #
 
     @staticmethod
