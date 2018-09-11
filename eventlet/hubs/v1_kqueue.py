@@ -1,7 +1,8 @@
 import os
-from eventlet import patcher
 import six
-from eventlet.hubs.hub import BaseHub
+
+from eventlet import patcher
+from eventlet.hubs.v1_hub import BaseHub
 
 select = patcher.original('select')
 time = patcher.original('time')
@@ -44,7 +45,7 @@ class Hub(BaseHub):
             raise
 
     def add(self, evtype, fileno, cb, tb, mac):
-        listener = super(Hub, self).add(evtype, fileno, cb, tb, mac)
+        listener = self.add_listener(evtype, fileno, cb, tb, mac)
         events = self._events.setdefault(fileno, {})
         if evtype not in events:
             try:
@@ -52,7 +53,7 @@ class Hub(BaseHub):
                 self._control([event], 0, 0)
                 events[evtype] = event
             except ValueError:
-                super(Hub, self).remove(listener)
+                self.remove_listener(listener)
                 raise
         return listener
 
@@ -64,7 +65,7 @@ class Hub(BaseHub):
         self._control(del_events, 0, 0)
 
     def remove(self, listener):
-        super(Hub, self).remove(listener)
+        self.remove_listener(listener)
         evtype = listener.evtype
         fileno = listener.fileno
         if not self.listeners[evtype].get(fileno):
@@ -77,10 +78,9 @@ class Hub(BaseHub):
                 pass
 
     def remove_descriptor(self, fileno):
-        super(Hub, self).remove_descriptor(fileno)
+        self.remove_descriptor_from_listeners(fileno)
         try:
-            events = self._events.pop(fileno).values()
-            self._delete_events(events)
+            self._delete_events(self._events.pop(fileno).values())
         except KeyError:
             pass
         except OSError:
@@ -93,12 +93,10 @@ class Hub(BaseHub):
             return
 
         result = self._control([], self.MAX_EVENTS, seconds)
-
-        ts = self.clock()
         for event in result:
             fileno = event.ident
             evfilt = event.filter
             if evfilt == self.FILTERS[self.READ]:
-                self.listeners_events.append((self.READ, fileno))
+                self.add_fd_event_read(fileno)
             if evfilt == self.FILTERS[self.WRITE]:
-                self.listeners_events.append((self.WRITE, fileno))
+                self.add_fd_event_write(fileno)

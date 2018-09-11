@@ -75,6 +75,18 @@ class HubBase(HubSkeleton):
         return listener
         #
 
+    def add_fd_event_read(self, fileno):
+        self.add_listener_event((self.READ, fileno))
+        #
+
+    def add_fd_event_write(self, fileno):
+        self.add_listener_event((self.WRITE, fileno))
+        #
+
+    def add_fd_event_error(self, fileno):
+        self.add_listener_event((None, fileno))
+        #
+
     def _obsolete(self, fileno):
         """ We've received an indication that 'fileno' has been obsoleted.
             Any current listeners must be defanged, and notifications to

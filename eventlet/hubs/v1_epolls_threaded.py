@@ -105,10 +105,10 @@ class Hub(BaseHub):
                 self.remove_descriptor(fileno)
                 continue
             if event & EXC_MASK:
-                self.add_listener_event((None, fileno))
+                self.add_fd_event_error(fileno)
                 continue
             if event & READ_MASK:
-                self.add_listener_event((self.READ, fileno))
+                self.add_fd_event_read(fileno)
             if event & WRITE_MASK:
-                self.add_listener_event((self.WRITE, fileno))
+                self.add_fd_event_write(fileno)
         #

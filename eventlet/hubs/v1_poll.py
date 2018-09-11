@@ -13,6 +13,7 @@ def is_available():
 EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT
+POLLNVAL = select.POLLNVAL
 
 
 class Hub(BaseHub):
@@ -90,14 +91,14 @@ class Hub(BaseHub):
             return
 
         for fileno, event in presult:
-            if event & select.POLLNVAL:
+            if event & POLLNVAL:
                 self.remove_descriptor(fileno)
                 continue
             if event & EXC_MASK:
-                self.listeners_events.append((None, fileno))
+                self.add_fd_event_error(fileno)
                 continue
             if event & READ_MASK:
-                self.listeners_events.append((self.READ, fileno))
+                self.add_fd_event_read(fileno)
             if event & WRITE_MASK:
-                self.listeners_events.append((self.WRITE, fileno))
+                self.add_fd_event_write(fileno)
 
