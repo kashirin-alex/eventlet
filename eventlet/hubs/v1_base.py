@@ -84,11 +84,11 @@ class HubBase(HubSkeleton):
         #
 
     def add_fd_event_read(self, fileno):
-        self.add_listener_event((self.READ, fileno))
+        self.add_listener_event((READ, fileno))
         #
 
     def add_fd_event_write(self, fileno):
-        self.add_listener_event((self.WRITE, fileno))
+        self.add_listener_event((WRITE, fileno))
         #
 
     def add_fd_event_error(self, fileno):

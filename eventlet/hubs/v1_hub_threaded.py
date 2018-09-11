@@ -160,3 +160,6 @@ class BaseHub(HubBase):
         timer.scheduled_time = self.clock() + timer.seconds
         self.add_next_timer(timer)
         return timer
+
+    def get_timers_count(self):
+        return len(self.timers)+len(self.next_timers)
