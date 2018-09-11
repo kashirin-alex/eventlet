@@ -122,11 +122,8 @@ class BaseHub(HubBase):
             return
         sleep_time = exp - self.clock()
         if sleep_time > 0:
-            if self.next_timers:
-                # ev_sleep(0)
-                return
             sleep_time += self.delay
-            if sleep_time <= 0:
+            if sleep_time <= 0 or self.next_timers:
                 self.delay = 0  # preserving delay can cause a close loop on a long delay
                 ev_sleep(0)
                 return
@@ -134,8 +131,6 @@ class BaseHub(HubBase):
                 # wait for fd signals
                 self.event_notifier.wait(sleep_time)
                 self.event_notifier.clear()
-            else:
-                ev_sleep(0)
             return
         self.delay = (sleep_time + self.delay) / 2  # delay is negative value
         # remove evaluated timer
