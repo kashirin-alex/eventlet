@@ -86,17 +86,17 @@ class Hub(BaseHub):
         try:
             presult = self.poll.poll(self.DEFAULT_SLEEP)
             if not presult:
-                ev_sleep(0)
+                ev_sleep(3)
                 return
         except (IOError, select.error) as e:
             if support.get_errno(e) == errno.EINTR:
-                ev_sleep(0)
+                ev_sleep(3)
                 return
             raise
         except self.SYSTEM_EXCEPTIONS:
             raise
         except:
-            ev_sleep(0)
+            ev_sleep(3)
             return
 
         for fileno, event in presult:
