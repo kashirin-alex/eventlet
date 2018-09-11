@@ -70,7 +70,7 @@ class BaseHub(HubBase):
                     while closed:
                         close_one(closed_pop(-1))
 
-                    if chk and not next_events:
+                    if not chk and not next_events:
                         break
                     while next_events:
                         event = next_events_pop(-1)
