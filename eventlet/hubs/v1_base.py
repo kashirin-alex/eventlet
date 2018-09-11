@@ -28,6 +28,8 @@ class HubBase(HubSkeleton):
         super(HubBase, self).__init__(clock)
 
         self.listeners = ({}, {})
+        self.listeners_r = self.listeners[READ]
+        self.listeners_w = self.listeners[WRITE]
         self.secondaries = ({}, {})
         self.closed = []
 
@@ -41,25 +43,25 @@ class HubBase(HubSkeleton):
         #
 
     def has_listeners_fileno(self, fileno):
-        return fileno in self.listeners[READ] or fileno in self.listeners[WRITE]
+        return fileno in self.listeners_r or fileno in self.listeners_w
         #
 
     def has_listener_reader(self, fileno):
-        return fileno in self.listeners[READ]
+        return fileno in self.listeners_r
         #
 
     def has_listener_writer(self, fileno):
-        return fileno in self.listeners[WRITE]
+        return fileno in self.listeners_w
         #
 
     def exist_listeners(self):
-        return bool(self.listeners[WRITE]) or bool(self.listeners[READ])
+        return bool(self.listeners_w) or bool(self.listeners_r)
 
     def add(self, *args):
         return self.add_listener(*args)
         #
 
-    def add_listener(self, evtype, fileno, cb, tb, mark_as_closed):
+    def add_listener(self, *args):
         """ args: evtype, fileno, cb, tb, mark_as_closed
         Signals an intent to or write a particular file descriptor.
         The *evtype* argument is either the constant READ or WRITE.
@@ -72,7 +74,8 @@ class HubBase(HubSkeleton):
         prepare a Python object as being closed, pre-empting further
         close operations from accidentally shutting down the wrong OS thread.
         """
-        listener = self.lclass(evtype, fileno, cb, tb, mark_as_closed)
+        listener = self.lclass(*args)
+        evtype, fileno = args[0:2]
         bucket = self.listeners[evtype]
         if fileno in bucket:
             if self.g_prevent_multiple_readers:
@@ -85,7 +88,7 @@ class HubBase(HubSkeleton):
                     "this error, call "
                     "eventlet.debug.hub_prevent_multiple_readers(False) - MY THREAD=%s; "
                     "THAT THREAD=%s" % (
-                        evtype, fileno, evtype, cb, bucket[fileno]))
+                        evtype, fileno, evtype, args[2], bucket[fileno]))
             # store off the second listener in another structure
             self.secondaries[evtype].setdefault(fileno, []).append(listener)
         else:
@@ -94,13 +97,13 @@ class HubBase(HubSkeleton):
         #
 
     def add_fd_event_read(self, fileno):
-        listener = self.listeners[READ].get(fileno)
+        listener = self.listeners_r.get(fileno)
         if listener:
             self.add_listener_event(listener)
         #
 
     def add_fd_event_write(self, fileno):
-        listener = self.listeners[WRITE].get(fileno)
+        listener = self.listeners_w.get(fileno)
         if listener:
             self.add_listener_event(listener)
         #
@@ -235,8 +238,9 @@ class HubBase(HubSkeleton):
     def prepare_timers(self):
         timers = self.timers
         next_timers = self.next_timers
+        pop = self.next_timers.pop
         while next_timers:
-            timer = next_timers.pop(-1)
+            timer = pop(-1)
             if not timer.called:
                 heappush(timers, (timer.scheduled_time, timer))
         #
@@ -279,16 +283,16 @@ class HubBase(HubSkeleton):
     # for debugging:
 
     def get_readers(self):
-        return self.listeners[READ].values()
+        return self.listeners_r.values()
 
     def get_writers(self):
-        return self.listeners[WRITE].values()
+        return self.listeners_w.values()
 
     def get_timers_count(self):
         return len(self.timers)+len(self.next_timers)
 
     def get_listeners_count(self):
-        return len(self.listeners[READ]),  len(self.listeners[WRITE])
+        return len(self.listeners_r),  len(self.listeners_w)
 
     def get_listeners_events_count(self):
         return len(self.listeners_events)
