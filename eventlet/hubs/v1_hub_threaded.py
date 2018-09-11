@@ -85,7 +85,6 @@ class BaseHub(HubBase):
 
                     # current evaluated event
                     exp, event = events[0]
-
                     if isinstance(event, self.lclass):
                         typ = 1
                     else:
@@ -99,6 +98,7 @@ class BaseHub(HubBase):
                     if due > 0:
                         chk = False
                         ev_sleep(0)
+                        print (due, event)
                         continue
                     delay = (due + delay) / 2  # delay is negative value
 
