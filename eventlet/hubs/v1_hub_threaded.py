@@ -121,7 +121,7 @@ class BaseHub(HubBase):
             #    ev_sleep(0)
             #    return
             if not self.next_timers and not self.listeners_events:
-                print ('no events, sleep_time', len(self.listeners_events))
+                print ('no events, sleep_time', len(self.listeners_events), sleep_time)
                 # wait for fd signals
                 self.event_notifier.wait(sleep_time)
                 self.event_notifier.clear()
