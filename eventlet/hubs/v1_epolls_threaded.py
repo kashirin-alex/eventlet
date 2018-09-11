@@ -88,9 +88,12 @@ class Hub(BaseHub):
     def wait(self, seconds=3):
         try:
             presult = self.poll.poll(self.DEFAULT_SLEEP)
-        except Exception as e:
-            print (e, sys.exc_info())
-            presult = None
+        except (IOError, select.error) as e:
+            if support.get_errno(e) == errno.EINTR:
+                return
+            raise
+        except self.SYSTEM_EXCEPTIONS:
+            raise
 
         if not presult:
             ev_sleep(seconds)
