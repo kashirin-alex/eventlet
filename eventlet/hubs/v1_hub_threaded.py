@@ -26,6 +26,7 @@ class BaseHub(HubBase):
 
         self.event_notifier = orig_threading.Event()
         self.events_waiter = None
+        self.timer_delay = 0
         #
 
     def waiting_thread(self):
@@ -126,14 +127,15 @@ class BaseHub(HubBase):
         sleep_time = exp - self.clock()
         if sleep_time > 0:
             print ('next_timers, sleep_time', len(self.next_timers))
+            if sleep_time+self.timer_delay > 0:
+                ev_sleep(0)
             if not self.next_timers and not self.listeners_events:
                 print ('no events, sleep_time', len(self.listeners_events))
                 # wait for fd signals
                 self.event_notifier.wait(sleep_time)
                 self.event_notifier.clear()
-            else:
-                ev_sleep(0)
             return
+        self.timer_delay = (sleep_time + self.timer_delay) / 2  # delay is negative value
         # remove evaluated timer
         heappop(timers)
 
