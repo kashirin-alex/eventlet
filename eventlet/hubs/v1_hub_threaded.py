@@ -77,8 +77,6 @@ class BaseHub(HubBase):
         # Process on fd event at a time
         if self.listeners_events:
             print ('yes events', len(self.listeners_events))
-
-        while self.listeners_events:
             # call on fd
             listener = self.listeners_events.popleft()
             # if listener.spent:
