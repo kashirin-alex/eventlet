@@ -77,7 +77,7 @@ class BaseHub(HubBase):
             self.close_one(self.closed.pop(-1))
 
         # Process all fds events
-        if self.listeners_events:
+        while self.listeners_events:
             listener = self.listeners_events.popleft()
             if self.debug_blocking:
                 self.block_detect_pre()
@@ -132,6 +132,7 @@ class BaseHub(HubBase):
             print ('events', len(self.listeners_events))
             return
         self.timer_delay = (sleep_time + self.timer_delay) / 2  # delay is negative value
+
         # remove evaluated timer
         heappop(timers)
 

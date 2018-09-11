@@ -24,7 +24,6 @@ class Hub(BaseHub):
 
     def __init__(self, clock=None):
         super(Hub, self).__init__(clock)
-
         self.poll = select.epoll()
         #
 
@@ -33,7 +32,6 @@ class Hub(BaseHub):
         new = not self.has_listeners_fileno(args[1])
         listener = self.add_listener(*args)
         try:
-            # new=True, Means we've added a new listener
             self.register(args[1], new=new)
         except IOError as ex:    # ignore EEXIST, #80
             if support.get_errno(ex) != errno.EEXIST:
