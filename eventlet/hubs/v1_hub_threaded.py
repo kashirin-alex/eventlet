@@ -26,6 +26,7 @@ class BaseHub(HubBase):
 
         self.event_notifier = orig_threading.Event()
         self.events_waiter = None
+        self.delay = 0
         #
 
     def waiting_thread(self):
@@ -122,13 +123,13 @@ class BaseHub(HubBase):
         sleep_time = exp - self.clock()
         if sleep_time > 0:
             if self.next_timers:
+                # ev_sleep(0)
+                return
+            sleep_time += self.delay
+            if sleep_time <= 0:
+                self.delay = 0  # preserving delay can cause a close loop on a long delay
                 ev_sleep(0)
                 return
-            # sleep_time += delay
-            # if sleep_time <= 0:
-            #    delay = 0  # preserving delay can cause a close loop on a long delay
-            #    ev_sleep(0)
-            #    return
             if not self.listeners_events:
                 # wait for fd signals
                 self.event_notifier.wait(sleep_time)
@@ -136,7 +137,7 @@ class BaseHub(HubBase):
             else:
                 ev_sleep(0)
             return
-        # delay = (sleep_time + delay) / 2  # delay is negative value
+        self.delay = (sleep_time + self.delay) / 2  # delay is negative value
         # remove evaluated timer
         heappop(timers)
 
