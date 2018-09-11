@@ -14,6 +14,7 @@ class BaseHub(HubBase):
 
     def __init__(self, clock=None):
         super(BaseHub, self).__init__(clock)
+        self.timer_delay = 0
         #
 
     def run(self, *a, **kw):
@@ -78,9 +79,9 @@ class BaseHub(HubBase):
                 continue
             due = exp - when  # self.clock()
             if due > 0:
-                return exp  # + self.timer_delay
+                return exp + self.timer_delay
 
-            # self.timer_delay = (due + self.timer_delay) / 2  # delay is negative value
+            self.timer_delay = (due + self.timer_delay) / 2  # delay is negative value
 
             # remove evaluated event
             heappop(timers)
