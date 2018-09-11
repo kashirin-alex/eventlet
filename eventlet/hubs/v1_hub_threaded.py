@@ -98,7 +98,6 @@ class BaseHub(HubBase):
 
                 # Process all fds events
                 while listeners_events:
-                    print ('events', len(listeners_events))
                     listener = listeners_events_popleft()
                     if debug_blocking:
                         self.block_detect_pre()
