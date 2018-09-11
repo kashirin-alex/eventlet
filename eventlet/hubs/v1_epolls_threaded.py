@@ -51,9 +51,8 @@ class Hub(BaseHub):
                     return
                 try:
                     self.poll.modify(fileno, mask)
-                except (IOError, OSError) as e:
+                except (IOError, OSError):
                     self.poll.register(fileno, mask)
-                    print (e)
                 return
             try:
                 self.poll.unregister(fileno)
@@ -105,7 +104,7 @@ class Hub(BaseHub):
                 self.remove_descriptor(fileno)
                 continue
             if event & EXC_MASK:
-                self.add_fd_event_error(fileno)
+                # self.add_fd_event_error(fileno)
                 continue
             if event & READ_MASK:
                 self.add_fd_event_read(fileno)
