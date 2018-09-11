@@ -64,14 +64,12 @@ class BaseHub(HubBase):
         try:
             while not self.stopping:
                 chk = True
-                while next_events or events:
+                while chk or next_events:
 
                     # Ditch all closed fds first.
                     while closed:
                         close_one(closed_pop(-1))
 
-                    if not chk and not next_events:
-                        break
                     while next_events:
                         event = next_events_pop(-1)
                         if hasattr(event, 'scheduled_time'):
@@ -100,6 +98,7 @@ class BaseHub(HubBase):
                     due = exp - self.clock()
                     if due > 0:
                         chk = False
+                        ev_sleep(0)
                         continue
                     delay = (due + delay) / 2  # delay is negative value
 
