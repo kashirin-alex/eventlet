@@ -159,11 +159,11 @@ class GreenSSLSocket(_original_sslsocket):
                     self.__class__)
             timeout = timeout_exc('timed out')
             while data:
+                trampoline(self, write=True, timeout_exc=timeout)
                 offset = self.send(data)
                 if offset > 0:
                     data = data[offset:]
-                if data:
-                    trampoline(self, write=True, timeout_exc=timeout)
+                # if data:
             return  # None for success
         else:
             while True:
