@@ -28,9 +28,6 @@ class BaseHub(HubBase):
             closed = self.closed
             close_one = self.close_one
             wait = self.wait
-            listeners_events = self.listeners_events
-            listeners_events_popleft = self.listeners_events.popleft
-            process_listener_event = self.process_listener_event
 
             while not self.stopping:
 
@@ -50,10 +47,6 @@ class BaseHub(HubBase):
                     sleep_time = self.default_sleep()
                 wait(sleep_time)
 
-                # Process all fds events
-                while listeners_events:
-                    process_listener_event(listeners_events_popleft())
-
             else:
                 del self.timers[:]
                 del self.next_timers[:]
@@ -62,4 +55,21 @@ class BaseHub(HubBase):
         finally:
             self.running = False
             self.stopping = False
+        #
+
+    def add_fd_event_read(self, fileno):
+        listener = self.listeners_r.get(fileno)
+        if listener:
+            self.process_listener_event(listener)
+        #
+
+    def add_fd_event_write(self, fileno):
+        listener = self.listeners_w.get(fileno)
+        if listener:
+            self.process_listener_event(listener)
+        #
+
+    def add_fd_event_error(self, fileno):
+        self.add_fd_event_read(fileno)
+        self.add_fd_event_write(fileno)
         #
