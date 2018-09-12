@@ -127,6 +127,9 @@ class Event(object):
                 return result
             finally:
                 self._waiters.discard(current)
+
+        if self._exc is not None:
+            current.throw(*self._exc)
         return self._result
 
     def send(self, result=None, exc=None):
@@ -161,10 +164,10 @@ class Event(object):
         if exc is not None:
             if not isinstance(exc, tuple):
                 exc = (exc, )
-            self._exc = True
+            self._exc = exc
         for waiter in self._waiters:
             active_hub.inst.schedule_call_global(
-                0, self._do_send, self._result, exc, waiter)
+                0, self._do_send, self._result, self._exc, waiter)
 
     def _do_send(self, result, exc, waiter):
         if waiter in self._waiters:
