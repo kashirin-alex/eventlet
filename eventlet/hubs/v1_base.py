@@ -147,12 +147,13 @@ class HubBase(HubSkeleton):
         pass
 
     def remove(self, listener):
-        if listener.spent:
-            return
         self.remove_listener(listener)
         #
 
     def remove_listener(self, listener):
+        if listener.spent:
+            return
+
         fileno = listener.fileno
         evtype = listener.evtype
         sec = self.secondaries[evtype].get(fileno)

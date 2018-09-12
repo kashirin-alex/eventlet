@@ -67,8 +67,7 @@ class Hub(BaseHub):
         #
 
     def remove(self, listener):
-        if not listener.spent:
-            self.remove_listener(listener)
+        self.remove_listener(listener)
         self.register(listener.fileno)
         #
 
@@ -110,4 +109,5 @@ class Hub(BaseHub):
                 self.add_fd_event_read(fileno)
             if event & WRITE_MASK:
                 self.add_fd_event_write(fileno)
+        ev_sleep(0)
         #

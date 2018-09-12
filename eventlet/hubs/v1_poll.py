@@ -29,8 +29,7 @@ class Hub(BaseHub):
         #
 
     def remove(self, listener):
-        if not listener.spent:
-            self.remove_listener(listener)
+        self.remove_listener(listener)
         self.register(listener.fileno)
         #
 
