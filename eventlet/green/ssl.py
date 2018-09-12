@@ -158,8 +158,9 @@ class GreenSSLSocket(_original_sslsocket):
                     "non-zero flags not allowed in calls to sendall() on %s" %
                     self.__class__)
             timeout = timeout_exc('timed out')
+            send = super(GreenSSLSocket, self).send
             while data:
-                offset = self.send(data)
+                offset = self._call_trampolining(send, data, flags)
                 if offset > 0:
                     data = data[offset:]
                 else:
