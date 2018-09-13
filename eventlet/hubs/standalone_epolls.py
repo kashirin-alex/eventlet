@@ -23,8 +23,6 @@ heappush = heapq.heappush
 heappop = heapq.heappop
 SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
 
-noop = FdListener(READ, 0, lambda x: None, lambda x: None, None)
-
 EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT
@@ -168,9 +166,13 @@ class Hub(HubSkeleton):
                 for f, ev in poll(due):
                     try:
                         if ev & EXC_MASK or ev & WRITE_MASK:
-                            get_writer(f, noop).cb(f)
+                            l = get_writer(f)
+                            if l is not None:
+                                l.cb(f)
                         if ev & EXC_MASK or ev & READ_MASK:
-                            get_reader(f, noop).cb(f)
+                            l = get_reader(f)
+                            if l is not None:
+                                l.cb(f)
                         if ev & POLLNVAL:
                             self.remove_descriptor(f)
                     except SYSTEM_EXCEPTIONS:
