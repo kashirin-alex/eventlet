@@ -19,8 +19,6 @@ WRITE = 1
 EVENT_TYPES = (READ, WRITE)
 DEFAULT_SLEEP = 60.0
 
-heappush = heapq.heappush
-heappop = heapq.heappop
 SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
 
 EXC_MASK = select.POLLERR | select.POLLHUP
@@ -41,14 +39,17 @@ class Hub(HubSkeleton):
         self.listeners_w = self.listeners[WRITE]
         self.secondaries = ({}, {})
         self.closed = []
-        self.timers = []
+
+        self.events = []
+        self.next_events = []
+        self.add_next_event = self.next_events.append
 
         self.poll = select.epoll()
         #
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        heappush(self.timers, (timer.scheduled_time, timer))
+        self.add_next_event((timer.scheduled_time, timer))
         return timer
         #
 
@@ -118,7 +119,9 @@ class Hub(HubSkeleton):
         self.stopping = False
 
         clock = self.clock
-        timers = self.timers
+        events = self.events
+        next_events = self.next_events
+        pop_next_event = self.next_events.pop
         delay = 0
 
         closed = self.closed
@@ -127,59 +130,64 @@ class Hub(HubSkeleton):
         poll = self.poll.poll
         get_reader = self.listeners[READ].get
         get_writer = self.listeners[WRITE].get
+        add_next_event = self.add_next_event
         squelch_exception = self.squelch_exception
+
+        heappush = heapq.heappush
+        heappop = heapq.heappop
 
         while not self.stopping:
 
-            # Ditch all closed fds first.
-            while closed:
+            while closed:                # Ditch all closed fds first.
                 l = pop_closed(-1)
-                if not l.greenlet.dead:
-                    # There's no point signalling a greenlet that's already dead.
+                if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
                     l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
-            when = clock()
-            due = DEFAULT_SLEEP
-            while timers:
-                # current evaluated
-                exp, t = timers[0]
-                if t.called:
-                    heappop(timers)  # remove called/cancelled timer
-                    continue
-                due = exp - when
-                if due > 0:
-                    due = exp - clock() + delay
-                    if due < 0:
-                        due = 0
-                    break
-                delay += due
-                delay /= 2
-                heappop(timers)  # remove evaluated event
-                try:
-                    t()
-                except SYSTEM_EXCEPTIONS:
-                    raise
-                except:
-                    pass
+            while next_events:
+                heappush(events, pop_next_event(-1))
 
-            try:
-                for f, ev in poll(due):
+            if events:
+                exp, event = events[0]   # current evaluated event
+                if getattr(event, 'called', False):
+                    heappop(events)      # remove called/cancelled timer
+                    continue
+
+                due = exp - clock()
+                if due < 0:
+                    heappop(events)      # remove evaluated event
+                    delay += due
+                    delay /= 2
                     try:
-                        if ev & EXC_MASK or ev & WRITE_MASK:
-                            l = get_writer(f)
-                            if l is not None:
-                                l.cb(f)
-                        if ev & EXC_MASK or ev & READ_MASK:
-                            l = get_reader(f)
-                            if l is not None:
-                                l.cb(f)
-                        if ev & POLLNVAL:
-                            self.remove_descriptor(f)
+                        if isinstance(event, FdListener):
+                            event.cb(event.fileno)
+                        else:
+                            event()
                     except SYSTEM_EXCEPTIONS:
                         raise
                     except:
-                        squelch_exception(f, sys.exc_info())
-                        clear_sys_exc_info()
+                        if isinstance(event, FdListener):
+                            squelch_exception(event.fileno, sys.exc_info())
+                            clear_sys_exc_info()
+                    continue
+                else:
+                    due += delay
+                    if due < 0:
+                        due = 0
+            else:
+                due = DEFAULT_SLEEP
+
+            try:
+                for f, ev in poll(due):
+                    if ev & EXC_MASK or ev & WRITE_MASK:
+                        l = get_writer(f)
+                        if l is not None:
+                            add_next_event((clock(), l))
+                    if ev & EXC_MASK or ev & READ_MASK:
+                        l = get_reader(f)
+                        if l is not None:
+                            add_next_event((clock(), l))
+                    if ev & POLLNVAL:
+                        self.remove_descriptor(f)
             except (IOError, select.error) as e:
                 if get_errno(e) == errno.EINTR:
                     continue
@@ -187,7 +195,8 @@ class Hub(HubSkeleton):
             except SYSTEM_EXCEPTIONS:
                 raise
 
-        del self.timers[:]
+        del self.events[:]
+        del self.next_events[:]
         del self.closed[:]
 
         self.running = False
@@ -203,7 +212,7 @@ class Hub(HubSkeleton):
         #
 
     def get_timers_count(self):
-        return len(self.timers)
+        return len(self.events)
         #
 
     def get_listeners_count(self):
@@ -290,14 +299,11 @@ class Hub(HubSkeleton):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
         for evtype in EVENT_TYPES:
-            for l in [self.listeners[evtype].pop(fileno, None)]+self.secondaries[evtype].pop(fileno, []):
-                if l is None:
-                    continue
-                try:
-                    l.cb(fileno)
-                except:
-                    self.squelch_exception(fileno, sys.exc_info())
-                    clear_sys_exc_info()
+            l = self.listeners[evtype].pop(fileno, None)
+            if l is not None:
+                self.add_next_event((self.clock(), l))
+            for l in self.secondaries[evtype].pop(fileno, []):
+                self.add_next_event((self.clock(), l))
         try:
             self.poll.unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):

@@ -218,10 +218,10 @@ class Hub(object):
         only."""
         listeners = []
         for evtype in event_types:
-            l = self.listeners[evtype].get(fileno)
+            l = self.listeners[evtype].pop(fileno)
             if l:
                 listeners.append(l)
-            listeners += self.secondaries[evtype].get(fileno, [])
+            listeners += self.secondaries[evtype].pop(fileno, [])
 
         for listener in listeners:
             self.add_listener_event(listener.evtype, listener.fileno)
