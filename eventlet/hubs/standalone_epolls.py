@@ -130,33 +130,35 @@ class Hub(HubSkeleton):
 
         while not self.stopping:
 
+            if timers:
+                exp, event = timers[0]   # current evaluated event
+                if event.called:
+                    heappop(timers)      # remove called/cancelled timer
+                    continue
+
+                due = exp - clock()
+                if due < 0:
+                    heappop(timers)      # remove evaluated event
+                    delay += due
+                    delay /= 2
+                    try:
+                        event()
+                    except SYSTEM_EXCEPTIONS:
+                        raise
+                    except:
+                        pass
+                    due = 0
+                else:
+                    due += delay
+                    if due < 0:
+                        due = 0
+            else:
+                due = DEFAULT_SLEEP
+
             while closed:                   # Ditch all closed fds first.
                 l = pop_closed(-1)
                 if not l.greenlet.dead:     # There's no point signalling a greenlet that's already dead.
                     l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
-
-            when = clock()
-            due = DEFAULT_SLEEP
-            while timers:
-                exp, t = timers[0]          # current evaluated
-                if t.called:
-                    heappop(timers)         # remove called/cancelled timer
-                    continue
-                due = exp - when
-                if due > 0:
-                    due = exp - clock() + delay
-                    if due < 0:
-                        due = 0
-                    break
-                delay += due
-                delay /= 2
-                heappop(timers)             # remove evaluated event
-                try:
-                    t()
-                except SYSTEM_EXCEPTIONS:
-                    raise
-                except:
-                    pass
 
             try:
                 for f, ev in poll(due):
