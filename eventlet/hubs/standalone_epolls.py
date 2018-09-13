@@ -43,13 +43,15 @@ class Hub(HubSkeleton):
         self.events = []
         self.next_events = []
         self.add_next_event = self.next_events.append
+        self.next_timers = []
+        self.add_next_timers = self.next_timers.append
 
         self.poll = select.epoll()
         #
 
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
-        self.add_next_event((timer.scheduled_time, timer))
+        self.add_next_timers(timer)
         return timer
         #
 
@@ -119,10 +121,14 @@ class Hub(HubSkeleton):
         self.stopping = False
 
         clock = self.clock
+        delay = 0
         events = self.events
+
+        next_timers = self.next_timers
+        pop_next_timer = self.next_timers.pop
+
         next_events = self.next_events
         pop_next_event = self.next_events.pop
-        delay = 0
 
         closed = self.closed
         pop_closed = self.closed.pop
@@ -143,6 +149,9 @@ class Hub(HubSkeleton):
                 if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
                     l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
+            while next_timers:
+                t = pop_next_timer(-1)
+                heappush(events, (t.scheduled_time, t))
             while next_events:
                 heappush(events, pop_next_event(-1))
 
