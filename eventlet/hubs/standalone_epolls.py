@@ -2,10 +2,9 @@ import errno
 import sys
 import traceback
 import heapq
-
 import eventlet
 from eventlet.support import clear_sys_exc_info, get_errno
-from eventlet.hubs.v1_skeleton import HubSkeleton
+from eventlet.hubs.v1_skeleton import HubSkeleton, FdListener
 
 select = eventlet.patcher.original('select')
 
@@ -24,6 +23,8 @@ heappush = heapq.heappush
 heappop = heapq.heappop
 SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
 
+noop = FdListener(READ, 0, lambda x: None, lambda x: None, None)
+
 EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT
@@ -37,7 +38,7 @@ class Hub(HubSkeleton):
     def __init__(self, clock=None):
         super(Hub, self).__init__(clock)
 
-        self.listeners = [{}, {}]
+        self.listeners = ({}, {})
         self.listeners_r = self.listeners[READ]
         self.listeners_w = self.listeners[WRITE]
         self.secondaries = ({}, {})
@@ -48,9 +49,8 @@ class Hub(HubSkeleton):
         #
 
     def add_timer(self, timer):
-        scheduled_time = self.clock() + timer.seconds
-        timer.scheduled_time = scheduled_time
-        heappush(self.timers, (scheduled_time, timer))
+        timer.scheduled_time = self.clock() + timer.seconds
+        heappush(self.timers, (timer.scheduled_time, timer))
         return timer
         #
 
@@ -115,63 +115,81 @@ class Hub(HubSkeleton):
         # hub's greenlet gets a chance to run
         if self.running:
             raise RuntimeError("Already running!")
-        try:
-            self.running = True
-            self.stopping = False
 
-            timers = self.timers
+        self.running = True
+        self.stopping = False
 
-            closed = self.closed
+        clock = self.clock
+        timers = self.timers
+        delay = 0
 
-            wait = self.wait
-            delay = 0
-            clock = self.clock
+        closed = self.closed
+        pop_closed = self.closed.pop
 
-            while not self.stopping:
+        poll = self.poll.poll
+        get_reader = self.listeners[READ].get
+        get_writer = self.listeners[WRITE].get
+        squelch_exception = self.squelch_exception
 
-                # Ditch all closed fds first.
-                while closed:
-                    listener = closed.pop(-1)
-                    if not listener.greenlet.dead:
-                        # There's no point signalling a greenlet that's already dead.
-                        listener.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
+        while not self.stopping:
 
-                when = clock()
-                while timers:
-                    # current evaluated
-                    exp, timer = timers[0]
-                    if timer.called:
-                        # remove called/cancelled timer
-                        heappop(timers)
-                        continue
-                    due = exp - when
-                    if due > 0:
-                        break
-                    delay = (delay + due) / 2  # delay is negative value
+            # Ditch all closed fds first.
+            while closed:
+                l = pop_closed(-1)
+                if not l.greenlet.dead:
+                    # There's no point signalling a greenlet that's already dead.
+                    l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
-                    # remove evaluated event
-                    heappop(timers)
+            when = clock()
+            due = DEFAULT_SLEEP
+            while timers:
+                # current evaluated
+                exp, t = timers[0]
+                if t.called:
+                    heappop(timers)  # remove called/cancelled timer
+                    continue
+                due = exp - when
+                if due > 0:
+                    due = exp - clock() + delay
+                    if due < 0:
+                        due = 0
+                    break
+                delay += due
+                delay /= 2
+                heappop(timers)  # remove evaluated event
+                try:
+                    t()
+                except SYSTEM_EXCEPTIONS:
+                    raise
+                except:
+                    pass
+
+            try:
+                for f, ev in poll(due):
                     try:
-                        timer()
+                        if ev & EXC_MASK or ev & WRITE_MASK:
+                            get_writer(f, noop).cb(f)
+                        if ev & EXC_MASK or ev & READ_MASK:
+                            get_reader(f, noop).cb(f)
+                        if ev & POLLNVAL:
+                            self.remove_descriptor(f)
                     except SYSTEM_EXCEPTIONS:
                         raise
                     except:
-                        pass
+                        squelch_exception(f, sys.exc_info())
+                        clear_sys_exc_info()
+            except (IOError, select.error) as e:
+                if get_errno(e) == errno.EINTR:
+                    continue
+                raise
+            except SYSTEM_EXCEPTIONS:
+                raise
 
-                if timers:
-                    sleep_time = timers[0][0] - clock() + delay
-                    if sleep_time < 0:
-                        sleep_time = 0
-                else:
-                    sleep_time = DEFAULT_SLEEP
-                wait(sleep_time)
+        del self.timers[:]
+        del self.closed[:]
 
-            else:
-                del self.timers[:]
-                del self.closed[:]
-        finally:
-            self.running = False
-            self.stopping = False
+        self.running = False
+        self.stopping = False
         #
 
     def get_readers(self):
@@ -188,42 +206,6 @@ class Hub(HubSkeleton):
 
     def get_listeners_count(self):
         return len(self.listeners_r),  len(self.listeners_w)
-        #
-
-    def wait(self, seconds=0):
-        try:
-            presult = self.poll.poll(seconds)
-        except (IOError, select.error) as e:
-            if get_errno(e) == errno.EINTR:
-                return
-            raise
-        except self.SYSTEM_EXCEPTIONS:
-            raise
-
-        for fileno, event in presult:
-            if event & POLLNVAL:
-                self.remove_descriptor(fileno)
-                continue
-            try:
-                if event & EXC_MASK:
-                    l = self.listeners_r.get(fileno)
-                    if l:
-                        l.cb(fileno)
-                    l = self.listeners_w.get(fileno)
-                    if l:
-                        l.cb(fileno)
-                    continue
-                if event & READ_MASK:
-                    l = self.listeners_r.get(fileno)
-                    if l:
-                        l.cb(fileno)
-                if event & WRITE_MASK:
-                    l = self.listeners_w.get(fileno)
-                    if l:
-                        l.cb(fileno)
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
         #
 
     def register(self, fileno, new=False):
@@ -254,12 +236,12 @@ class Hub(HubSkeleton):
             raise
         #
 
-    def add(self, *args):
+    def add(self, evtype, fileno, cb, tb, mac):
         """ *args: evtype, fileno, cb, tb, mac """
-        evtype, fileno = args[0:2]
+        # evtype, fileno = args[0:2]
         exists = (fileno in self.listeners_r or fileno in self.listeners_w)
 
-        listener = self.lclass(*args)
+        listener = self.lclass(evtype, fileno, cb, tb, mac)
         bucket = self.listeners[evtype]
         if exists and fileno in bucket:
             if self.g_prevent_multiple_readers:
@@ -272,7 +254,7 @@ class Hub(HubSkeleton):
                     "this error, call "
                     "eventlet.debug.hub_prevent_multiple_readers(False) - MY THREAD=%s; "
                     "THAT THREAD=%s" % (
-                        evtype, fileno, evtype, args[2], bucket[fileno]))
+                        evtype, fileno, evtype, cb, bucket[fileno]))
             # store off the second listener in another structure
             self.secondaries[evtype].setdefault(fileno, []).append(listener)
         else:

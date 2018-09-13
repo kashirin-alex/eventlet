@@ -244,6 +244,12 @@ def check_idle_cpu_usage(duration, allowed_part):
             allowed_part * 100)
 
 
+def check_ref_count(Instance, expected=0):
+    c = sum(1 for o in gc.get_objects() if isinstance(o, Instance))
+    assert c == expected, \
+        "%s ref expected: %d counted: %d " % (Instance, expected, c)
+
+
 def verify_hub_empty():
 
     def format_listener(listener):

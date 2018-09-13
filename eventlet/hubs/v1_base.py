@@ -268,23 +268,23 @@ class HubBase(HubSkeleton):
 
         while timers:
             # current evaluated
-            exp, timer = timers[0]
-            if timer.called:
+            exp, t = timers[0]
+            if t.called:
                 # remove called/cancelled timer
                 heappop(timers)
                 continue
             due = exp - when  # self.clock()
             if due > 0:
                 return
-            self.timer_delay = (self.timer_delay + due) / 2  # delay is negative value
-
+            self.timer_delay += due # delay is negative value
+            self.timer_delay /= 2
             # remove evaluated event
             heappop(timers)
 
             if debug_blocking:
                 self.block_detect_pre()
             try:
-                timer()
+                t()
             except self.SYSTEM_EXCEPTIONS:
                 raise
             except:

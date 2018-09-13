@@ -56,9 +56,8 @@ class Hub(HubSkeleton):
         #
 
     def add_timer(self, timer):
-        scheduled_time = self.clock() + timer.seconds
-        timer.scheduled_time = scheduled_time
-        heappush(self.timers, (scheduled_time, timer))
+        timer.scheduled_time = self.clock() + timer.seconds
+        heappush(self.timers, (timer.scheduled_time, timer))
         return timer
         #
 
@@ -121,49 +120,37 @@ class Hub(HubSkeleton):
 
         no_one_waiting = self.event_notifier.is_set
         notify = self.event_notifier.set
-        readers = self.listeners_r
-        writers = self.listeners_w
+
+        get_reader = self.listeners[READ].get
+        get_writer = self.listeners[WRITE].get
+        squelch_exception = self.squelch_exception
+
         while not self.stopping:
             try:
-                presult = poll(DEFAULT_SLEEP)
-                if not presult:
+                for f, ev in poll(DEFAULT_SLEEP):
+                    try:
+                        if ev & EXC_MASK or ev & WRITE_MASK:
+                            l = get_writer(f)
+                            if l:
+                                add_events(l)
+                        if ev & EXC_MASK or ev & READ_MASK:
+                            l = get_reader(f)
+                            if l:
+                                add_events(l)
+                        if ev & POLLNVAL:
+                            self.remove_descriptor(f)
+                    except SYSTEM_EXCEPTIONS:
+                        raise
+                    except:
+                        squelch_exception(f, sys.exc_info())
+                        clear_sys_exc_info()
+            except (IOError, select.error) as e:
+                if get_errno(e) == errno.EINTR:
                     ev_sleep(3)
                     continue
-            except (IOError, select.error) as e:
-                if get_errno(e) != errno.EINTR:
-                    raise
-                ev_sleep(3)
-                continue
+                raise
             except SYSTEM_EXCEPTIONS:
                 raise
-            except:
-                ev_sleep(3)
-                continue
-
-            for fileno, event in presult:
-                if event & POLLNVAL:
-                    self.remove_descriptor(fileno)
-                    continue
-                try:
-                    if event & EXC_MASK:
-                        l = readers.get(fileno)
-                        if l:
-                            add_events(l)
-                        l = writers.get(fileno)
-                        if l:
-                            add_events(l)
-                        continue
-                    if event & READ_MASK:
-                        l = readers.get(fileno)
-                        if l:
-                            add_events(l)
-                    if event & WRITE_MASK:
-                        l = writers.get(fileno)
-                        if l:
-                            add_events(l)
-                except:
-                    self.squelch_exception(fileno, sys.exc_info())
-                    clear_sys_exc_info()
 
             if not no_one_waiting():
                 notify()
@@ -177,82 +164,75 @@ class Hub(HubSkeleton):
         # hub's greenlet gets a chance to run
         if self.running:
             raise RuntimeError("Already running!")
-        try:
-            self.running = True
-            self.stopping = False
+        self.running = True
+        self.stopping = False
 
-            if self.events_waiter is None or not self.events_waiter.is_alive():
-                self.events_waiter = orig_threading.Thread(target=self.waiting_thread)
-                self.events_waiter.start()
-            self.event_notifier.set()
-            wait = self.event_notifier.wait
-            wait_clear = self.event_notifier.clear
+        if self.events_waiter is None or not self.events_waiter.is_alive():
+            self.events_waiter = orig_threading.Thread(target=self.waiting_thread)
+            self.events_waiter.start()
+        self.event_notifier.set()
+        wait = self.event_notifier.wait
+        wait_clear = self.event_notifier.clear
 
-            timers = self.timers
-            closed = self.closed
-            fd_events = self.listeners_events
-            squelch_exception = self.squelch_exception
-            clock = self.clock
-            delay = 0
-            while not self.stopping:
+        timers = self.timers
+        closed = self.closed
+        fd_events = self.listeners_events
+        pop_fd_event = fd_events.popleft
 
-                # Ditch all closed fds first.
-                while closed:
-                    listener = closed.pop(-1)
-                    if not listener.greenlet.dead:
-                        # There's no point signalling a greenlet that's already dead.
-                        listener.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
+        squelch_exception = self.squelch_exception
+        clock = self.clock
+        delay = 0
+        while not self.stopping:
 
-                when = clock()
-                while timers:
-                    # current evaluated
-                    exp, timer = timers[0]
-                    if timer.called:
-                        # remove called/cancelled timer
-                        heappop(timers)
-                        continue
-                    due = exp - when
-                    if due > 0:
-                        break
-                    delay = (delay + due) / 2  # delay is negative value
+            # Ditch all closed fds first.
+            while closed:
+                listener = closed.pop(-1)
+                if not listener.greenlet.dead:
+                    # There's no point signalling a greenlet that's already dead.
+                    listener.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
-                    # remove evaluated event
-                    heappop(timers)
-                    try:
-                        timer()
-                    except SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        pass
-
-                if not fd_events:
-                    if timers:
-                        sleep_time = timers[0][0] - clock() + delay
-                        if sleep_time < 0:
-                            sleep_time = 0
-                    else:
-                        sleep_time = DEFAULT_SLEEP
-                    wait(sleep_time)
-                    wait_clear()
-
-                # Process all fds events
-                if fd_events:
-                    # call on fd cb
-                    l = fd_events.popleft()
-                    try:
-                        l.cb(l.fileno)
-                    except SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        squelch_exception(l.fileno, sys.exc_info())
-                        clear_sys_exc_info()
-
+            while fd_events:
+                l = pop_fd_event()
+                try:
+                    l.cb(l.fileno)
+                except SYSTEM_EXCEPTIONS:
+                    raise
+                except:
+                    squelch_exception(l.fileno, sys.exc_info())
+                    clear_sys_exc_info()
             else:
-                del self.timers[:]
-                del self.listeners_events[:]
-        finally:
-            self.running = False
-            self.stopping = False
+                if not timers:
+                    due = DEFAULT_SLEEP
+                if due > 0:
+                    wait(due)
+                    wait_clear()
+                else:
+                    ev_sleep(0)
+
+            while timers:
+                exp, t = timers[0]  # current evaluated
+                if t.called:
+                    heappop(timers)  # remove called/cancelled timer
+                    continue
+                due = exp - clock()
+                if due > 0:
+                    # due += delay
+                    break
+                # delay += due  # delay is negative value
+                # delay /= 2
+                heappop(timers)  # remove evaluated event
+                try:
+                    t()
+                except SYSTEM_EXCEPTIONS:
+                    raise
+                except:
+                    pass
+
+        del self.timers[:]
+        del self.listeners_events[:]
+
+        self.running = False
+        self.stopping = False
         #
 
     def get_readers(self):

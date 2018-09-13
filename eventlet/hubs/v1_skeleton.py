@@ -109,6 +109,7 @@ class HubSkeleton(object):
         self.lclass = FdListener
 
         self.greenlet = support.greenlets.greenlet(self.run)
+        self.greenlet_switch = self.greenlet.switch
         self.stopping = False
         self.running = False
 
@@ -141,7 +142,7 @@ class HubSkeleton(object):
         except ValueError:
             pass  # gets raised if there is a greenlet parent cycle
         support.clear_sys_exc_info()
-        return self.greenlet.switch()
+        return self.greenlet_switch()
         #
 
     def ensure_greenlet(self):
@@ -157,6 +158,7 @@ class HubSkeleton(object):
         # or start new Thread depends on the state of self.events_waiter with the new greenlet
         self.greenlet.parent = new
         self.greenlet = new
+        self.greenlet_switch = self.greenlet.switch
         #
 
     def abort(self, wait=False):
