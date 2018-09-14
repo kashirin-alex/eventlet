@@ -23,8 +23,8 @@ WRITE = 1
 EVENT_TYPES = (READ, WRITE)
 DEFAULT_SLEEP = 60.0
 
-# heappush = heapq.heappush
-# heappop = heapq.heappop
+heappush = heapq.heappush
+heappop = heapq.heappop
 SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
 
 EXC_MASK = select.POLLERR | select.POLLHUP
@@ -56,18 +56,8 @@ class Hub(HubSkeleton):
         #
 
     def add_timer(self, timer):
-        scheduled_time = self.clock() + timer.seconds
-
-        k = 0
-        for t in self.timers:
-            if t.scheduled_time > scheduled_time:
-                k += 1
-                continue
-            break
-
-        timer.scheduled_time = scheduled_time
-        self.timers.insert(k, timer)
-        # heappush(self.timers, (timer.scheduled_time, timer))
+        timer.scheduled_time = self.clock() + timer.seconds
+        heappush(self.timers, (timer.scheduled_time, timer))
         return timer
         #
 
@@ -192,18 +182,14 @@ class Hub(HubSkeleton):
         while not self.stopping:
 
             if timers:
-                t = timers[-1]
-                # exp, t = timers[0]   # current evaluated timer
+                exp, t = timers[0]   # current evaluated timer
                 if t.called:
-                    timers.pop(-1)
-                    # heappop(timers)  # remove called/cancelled timer
+                    heappop(timers)  # remove called/cancelled timer
                     continue
 
-                due = t.scheduled_time - clock()
-                # due = exp - clock()
+                due = exp - clock()
                 if due < 0:
-                    timers.pop(-1)
-                    # heappop(timers)   # remove evaluated timer
+                    heappop(timers)   # remove evaluated timer
                     delay += due
                     delay /= 2
                     try:
