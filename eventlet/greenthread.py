@@ -144,6 +144,52 @@ def _spawn_n(seconds, func, args, kwargs):
     return active_hub.inst.schedule_call_global(seconds, g.switch, *args, **kwargs), g
 
 
+def cancel(g, *throw_args):
+    """Like :func:`kill`, but only terminates the greenthread if it hasn't
+    already started execution.  If the grenthread has already started
+    execution, :func:`cancel` has no effect."""
+    if not g:
+        kill(g, *throw_args)
+
+
+def kill(g, *throw_args):
+    """Terminates the target greenthread by raising an exception into it.
+    Whatever that greenthread might be doing; be it waiting for I/O or another
+    primitive, it sees an exception right away.
+
+    By default, this exception is GreenletExit, but a specific exception
+    may be specified.  *throw_args* should be the same as the arguments to
+    raise; either an exception instance or an exc_info tuple.
+
+    Calling :func:`kill` causes the calling greenthread to cooperatively yield.
+    """
+    if g.dead:
+        return
+    if not g:
+        # greenlet hasn't started yet and therefore throw won't work
+        # on its own; semantically we want it to be as though the main
+        # method never got called
+        def just_raise(*a, **kw):
+            if throw_args:
+                six.reraise(throw_args[0], throw_args[1], throw_args[2])
+            else:
+                raise GreenletExit()
+        g.run = just_raise
+        if isinstance(g, GreenThread):
+            # it's a GreenThread object, so we want to call its main
+            # method to take advantage of the notification
+            try:
+                g.main(just_raise, (), {})
+            except:
+                pass
+    current = getcurrent()
+    if current is not active_hub.inst.greenlet:
+        # arrange to wake the caller back up immediately
+        active_hub.inst.ensure_greenlet()
+        active_hub.inst.schedule_call_global(0, current.switch)
+    g.throw(*throw_args)
+
+
 class GreenThread(greenlet):
     """The GreenThread class is a type of Greenlet which has the additional
     property of being able to retrieve the return value of the main function.
@@ -240,49 +286,3 @@ class GreenThread(greenlet):
     #    all calls to :meth:`wait` will raise *throw_args* (which default
     #    to :class:`greenlet.GreenletExit`)."""
     #    return cancel(self, *throw_args)
-
-
-def cancel(g, *throw_args):
-    """Like :func:`kill`, but only terminates the greenthread if it hasn't
-    already started execution.  If the grenthread has already started
-    execution, :func:`cancel` has no effect."""
-    if not g:
-        kill(g, *throw_args)
-
-
-def kill(g, *throw_args):
-    """Terminates the target greenthread by raising an exception into it.
-    Whatever that greenthread might be doing; be it waiting for I/O or another
-    primitive, it sees an exception right away.
-
-    By default, this exception is GreenletExit, but a specific exception
-    may be specified.  *throw_args* should be the same as the arguments to
-    raise; either an exception instance or an exc_info tuple.
-
-    Calling :func:`kill` causes the calling greenthread to cooperatively yield.
-    """
-    if g.dead:
-        return
-    if not g:
-        # greenlet hasn't started yet and therefore throw won't work
-        # on its own; semantically we want it to be as though the main
-        # method never got called
-        def just_raise(*a, **kw):
-            if throw_args:
-                six.reraise(throw_args[0], throw_args[1], throw_args[2])
-            else:
-                raise GreenletExit()
-        g.run = just_raise
-        if isinstance(g, GreenThread):
-            # it's a GreenThread object, so we want to call its main
-            # method to take advantage of the notification
-            try:
-                g.main(just_raise, (), {})
-            except:
-                pass
-    current = getcurrent()
-    if current is not active_hub.inst.greenlet:
-        # arrange to wake the caller back up immediately
-        active_hub.inst.ensure_greenlet()
-        active_hub.inst.schedule_call_global(0, current.switch)
-    g.throw(*throw_args)
