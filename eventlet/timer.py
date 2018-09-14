@@ -58,10 +58,8 @@ class Timer(object):
             return
         self.called = True
         cb, args, kw = self.tpl
-        try:
-            cb(*args, **kw)
-        finally:
-            self.tpl = None
+        cb(*args, **kw)
+        self.tpl = None
 
     def cancel(self):
         """Prevent this timer from being called. If the timer has already
@@ -97,9 +95,10 @@ class LocalTimer(Timer):
         self.called = True
         if self.greenlet is not None and self.greenlet.dead:
             return
-
         cb, args, kw = self.tpl
         cb(*args, **kw)
+        self.tpl = None
+        self.greenlet = None
 
     def cancel(self):
         self.greenlet = None
