@@ -159,24 +159,26 @@ def trampoline(fd, read=None, write=None, timeout=None,
             t.cancel()
 
 
-def notify_close(fd):
-    """
-    A particular file descriptor has been explicitly closed. Register for any
-    waiting listeners to be notified on the next run loop.
-    """
-    active_hub.inst.notify_close(fd)
+notify_close = None  # method is set by HubSkeleton, method for implementation
+# def notify_close(fd):  # deprecated
+#    """
+#    A particular file descriptor has been explicitly closed. Register for any
+#    waiting listeners to be notified on the next run loop.
+#    """
+#    active_hub.inst.notify_close(fd)
 
 
-def notify_opened(fd):
-    """
-    Some file descriptors may be closed 'silently' - that is, by the garbage
-    collector, by an external library, etc. When the OS returns a file descriptor
-    from an open call (or something similar), this may be the only indication we
-    have that the FD has been closed and then recycled.
-    We let the hub know that the old file descriptor is dead; any stuck listeners
-    will be disabled and notified in turn.
-    """
-    active_hub.inst.mark_as_reopened(fd)
+notify_opened = None  # method is set by HubSkeleton, method for implementation
+# def notify_opened(fd):  # deprecated
+#    """
+#    Some file descriptors may be closed 'silently' - that is, by the garbage
+#    collector, by an external library, etc. When the OS returns a file descriptor
+#    from an open call (or something similar), this may be the only indication we
+#    have that the FD has been closed and then recycled.
+#    We let the hub know that the old file descriptor is dead; any stuck listeners
+#    will be disabled and notified in turn.
+#    """
+#    active_hub.inst.mark_as_reopened(fd)
 
 
 class IOClosed(IOError):

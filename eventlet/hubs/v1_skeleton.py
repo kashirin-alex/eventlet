@@ -118,6 +118,9 @@ class HubSkeleton(object):
         self.debug_blocking_resolution = 1
         self._old_signal_handler = None
         self.g_prevent_multiple_readers = True
+
+        eventlet.hubs.notify_close = self.notify_close
+        eventlet.hubs.notify_opened = self.mark_as_reopened
         #
 
     # Not Implemented
@@ -233,5 +236,15 @@ class HubSkeleton(object):
 
     # Not Implemented
     def add_timer(self, timer):
+        raise NotImplementedError("Implement this in a subclass")
+        #
+
+    # Not Implemented
+    def mark_as_reopened(self, *a, **kw):
+        raise NotImplementedError("Implement this in a subclass")
+        #
+
+    # Not Implemented
+    def notify_close(self, *a, **kw):
         raise NotImplementedError("Implement this in a subclass")
         #
