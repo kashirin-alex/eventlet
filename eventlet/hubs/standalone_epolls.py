@@ -135,7 +135,6 @@ class Hub(HubSkeleton):
                 if t.called:
                     heappop(timers)  # remove called/cancelled timer
                     continue
-
                 due = exp - clock()
                 if due < 0:
                     heappop(timers)  # remove evaluated timer

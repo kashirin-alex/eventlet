@@ -173,6 +173,7 @@ class Hub(HubSkeleton):
         squelch_exception = self.squelch_exception
         clock = self.clock
         delay = 0
+
         while not self.stopping:
 
             if timers:
@@ -196,6 +197,11 @@ class Hub(HubSkeleton):
             else:
                 due = DEFAULT_SLEEP
 
+            while closed:                # Ditch all closed fds.
+                l = pop_closed(-1)
+                if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
+                    l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
+
             if not fd_events and due > 0:
                 wait(due)  # wait for fd signals
                 wait_clear()
@@ -211,11 +217,6 @@ class Hub(HubSkeleton):
                 except:
                     squelch_exception(fileno, sys.exc_info())
                     clear_sys_exc_info()
-
-            while closed:                # Ditch all closed fds.
-                l = pop_closed(-1)
-                if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
-                    l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
         del self.timers[:]
         del self.listeners_events[:]
