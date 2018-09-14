@@ -42,7 +42,7 @@ class Event(object):
     def __init__(self):
         self._result = None
         self._exc = None
-        self._waiters = set()
+        self._waiters = []
         self.reset()
 
     def __str__(self):
@@ -116,7 +116,7 @@ class Event(object):
         """
         current = greenlet.getcurrent()
         if self._result is NOT_USED:
-            self._waiters.add(current)
+            self._waiters.append(current)
             timer = None
             if timeout is not None:
                 timer = active_hub.inst.schedule_call_local(timeout, self._do_send, None, None, current)
@@ -127,7 +127,7 @@ class Event(object):
                 return result
             finally:
                 if current in self._waiters:
-                    self._waiters.discard(current)
+                    self._waiters.remove(current)
 
         if self._exc is not None:
             current.throw(*self._exc)
