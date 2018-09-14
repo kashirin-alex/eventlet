@@ -74,9 +74,9 @@ class GreenPool(object):
             return gt
         else:
             self.sem.acquire()
-            gt = eventlet.spawn(function, *args, **kwargs)
             if not self.coroutines_running:
                 self.no_coros_running = eventlet.Event()
+            gt = eventlet.spawn(function, *args, **kwargs)
             self.coroutines_running.add(gt)
             gt.link(self._spawn_done)
         return gt
@@ -106,12 +106,10 @@ class GreenPool(object):
             self._spawn_n_impl(function, args, kwargs, None)
         else:
             self.sem.acquire()
-            g = eventlet.spawn_n(
-                self._spawn_n_impl,
-                function, args, kwargs, True)
             if not self.coroutines_running:
                 self.no_coros_running = eventlet.Event()
-            self.coroutines_running.add(g)
+            self.coroutines_running.add(eventlet.spawn_n(self._spawn_n_impl,
+                                                         function, args, kwargs, True))
 
     def waitall(self):
         """Waits until all greenthreads in the pool are finished working."""
