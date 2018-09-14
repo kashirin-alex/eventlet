@@ -5,17 +5,14 @@ from collections import deque
 import six
 
 import eventlet
-from eventlet import event
-from eventlet import support
-from eventlet import timeout
 from eventlet.hubs import active_hub
-from eventlet.support import greenlets as greenlet
+from eventlet.support.greenlets import greenlet, GreenletExit
 
 __all__ = ['getcurrent', 'sleep', 'spawn', 'spawn_n',
            'kill',
            'spawn_after', 'spawn_after_local', 'GreenThread']
 
-getcurrent = greenlet.getcurrent
+getcurrent = eventlet.getcurrent
 
 
 def sleep(seconds=0):
@@ -127,7 +124,7 @@ def call_after_local(seconds, function, *args, **kwargs):
         DeprecationWarning, stacklevel=2)
     return active_hub.inst.schedule_call_local(
         seconds,
-        greenlet.greenlet(function, parent=active_hub.inst.greenlet).switch, *args, **kwargs)
+        greenlet(function, parent=active_hub.inst.greenlet).switch, *args, **kwargs)
 
 
 call_after = call_after_local
@@ -141,28 +138,21 @@ def exc_after(seconds, *throw_args):
         return eventlet.Timer(seconds, lambda: None)
     return active_hub.inst.schedule_call_local(seconds, getcurrent().throw, *throw_args)
 
-# deprecate, remove
-TimeoutError, with_timeout = (
-    support.wrap_deprecated(old, new)(fun) for old, new, fun in (
-        ('greenthread.TimeoutError', 'Timeout', timeout.Timeout),
-        ('greenthread.with_timeout', 'with_timeout', timeout.with_timeout),
-    ))
-
 
 def _spawn_n(seconds, func, args, kwargs):
-    g = greenlet.greenlet(func, parent=active_hub.inst.greenlet)
+    g = greenlet(func, parent=active_hub.inst.greenlet)
     return active_hub.inst.schedule_call_global(seconds, g.switch, *args, **kwargs), g
 
 
-class GreenThread(greenlet.greenlet):
+class GreenThread(greenlet):
     """The GreenThread class is a type of Greenlet which has the additional
     property of being able to retrieve the return value of the main function.
     Do not construct GreenThread objects directly; call :func:`spawn` to get one.
     """
 
     def __init__(self, parent):
-        super(GreenThread, self).__init__(self.main, parent)
-        self._exit_event = event.Event()
+        greenlet.__init__(self, self.main, parent)
+        self._exit_event = eventlet.Event()
         self._resolving_links = False
         self._exit_funcs = None
 
@@ -277,7 +267,7 @@ def kill(g, *throw_args):
             if throw_args:
                 six.reraise(throw_args[0], throw_args[1], throw_args[2])
             else:
-                raise greenlet.GreenletExit()
+                raise GreenletExit()
         g.run = just_raise
         if isinstance(g, GreenThread):
             # it's a GreenThread object, so we want to call its main
