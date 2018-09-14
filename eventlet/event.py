@@ -166,14 +166,7 @@ class Event(object):
             self._exc = exc
         schedule_call_global = active_hub.inst.schedule_call_global
         while self._waiters:
-            schedule_call_global(0, self._do_send, result, exc, self._waiters.pop())
-
-    @staticmethod
-    def _do_send(result, exc, waiter):
-        if exc is None:
-            waiter.switch(result)
-            return
-        waiter.throw(*exc)
+            schedule_call_global(0, do_send, result, exc, self._waiters.pop())
 
     def send_exception(self, *args):
         """Same as :meth:`send`, but sends an exception to waiters.
@@ -217,3 +210,10 @@ class Event(object):
         """
         # the arguments and the same as for greenlet.throw
         return self.send(None, args)
+
+
+def do_send(result, exc, waiter):
+    if exc is None:
+        waiter.switch(result)
+        return
+    waiter.throw(*exc)
