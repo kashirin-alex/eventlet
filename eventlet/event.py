@@ -40,10 +40,9 @@ class Event(object):
     """
 
     def __init__(self):
-        self._result = None
+        self._result = NOT_USED
         self._exc = None
         self._waiters = []
-        self.reset()
 
     def __str__(self):
         params = (self.__class__.__name__, hex(id(self)),
@@ -116,18 +115,16 @@ class Event(object):
         """
         current = greenlet.getcurrent()
         if self._result is NOT_USED:
-            self._waiters.append(current)
+            self._waiters.insert(0, current)
             timer = None
             if timeout is not None:
                 timer = active_hub.inst.schedule_call_local(timeout, self._do_send, None, None, current)
-            try:
-                result = active_hub.inst.switch()
-                if timer is not None:
-                    timer.cancel()
-                return result
-            finally:
+            result = active_hub.inst.switch()
+            if timer is not None:
+                timer.cancel()
                 if current in self._waiters:
                     self._waiters.remove(current)
+            return result
 
         if self._exc is not None:
             current.throw(*self._exc)
@@ -169,7 +166,7 @@ class Event(object):
             self._exc = exc
         schedule_call_global = active_hub.inst.schedule_call_global
         while self._waiters:
-            schedule_call_global(0, self._do_send, result, exc, self._waiters.pop(0))
+            schedule_call_global(0, self._do_send, result, exc, self._waiters.pop())
 
     @staticmethod
     def _do_send(result, exc, waiter):
