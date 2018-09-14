@@ -131,18 +131,18 @@ class Hub(HubSkeleton):
         while not self.stopping:
 
             if timers:
-                exp, event = timers[0]   # current evaluated event
-                if event.called:
-                    heappop(timers)      # remove called/cancelled timer
+                exp, t = timers[0]   # current evaluated timer
+                if t.called:
+                    heappop(timers)  # remove called/cancelled timer
                     continue
 
                 due = exp - clock()
                 if due < 0:
-                    heappop(timers)      # remove evaluated event
+                    heappop(timers)  # remove evaluated timer
                     delay += due
                     delay /= 2
                     try:
-                        event()
+                        t()
                     except SYSTEM_EXCEPTIONS:
                         raise
                     except:
@@ -155,9 +155,9 @@ class Hub(HubSkeleton):
             else:
                 due = DEFAULT_SLEEP
 
-            while closed:                   # Ditch all closed fds first.
+            while closed:                # Ditch all closed fds first.
                 l = pop_closed(-1)
-                if not l.greenlet.dead:     # There's no point signalling a greenlet that's already dead.
+                if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
                     l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
             try:
