@@ -126,7 +126,8 @@ class Event(object):
                     timer.cancel()
                 return result
             finally:
-                self._waiters.discard(current)
+                if current in self._waiters:
+                    self._waiters.discard(current)
 
         if self._exc is not None:
             current.throw(*self._exc)
@@ -165,16 +166,15 @@ class Event(object):
             if not isinstance(exc, tuple):
                 exc = (exc, )
             self._exc = exc
-        for waiter in self._waiters:
-            active_hub.inst.schedule_call_global(
-                0, self._do_send, self._result, self._exc, waiter)
+        schedule_call_global = active_hub.inst.schedule_call_global
+        while self._waiters:
+            schedule_call_global(0, self._do_send, self._result, exc, self._waiters.pop())
 
     def _do_send(self, result, exc, waiter):
-        if waiter in self._waiters:
-            if exc is None:
-                waiter.switch(result)
-            else:
-                waiter.throw(*exc)
+        if exc is None:
+            waiter.switch(result)
+        else:
+            waiter.throw(*exc)
 
     def send_exception(self, *args):
         """Same as :meth:`send`, but sends an exception to waiters.
