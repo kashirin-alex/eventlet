@@ -168,7 +168,7 @@ class Event(object):
             self._exc = exc
         schedule_call_global = active_hub.inst.schedule_call_global
         while self._waiters:
-            schedule_call_global(0, self._do_send, self._result, exc, self._waiters.pop())
+            schedule_call_global(0, self._do_send, self._result, exc, self._waiters.pop(0))
 
     def _do_send(self, result, exc, waiter):
         if exc is None:
