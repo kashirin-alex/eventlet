@@ -49,17 +49,17 @@ def select(read_list, write_list, error_list, timeout=None):
     #    elif l.evtype == hub.WRITE:
     #        ds_write[get_fileno(l)] = l
 
+    current_switch = current.switch
     timers = []
-    listeners = []
 
     def on_read(d):
-        current.switch(([ds_read[get_fileno(d)]], [], []))
+        current_switch(([ds_read[get_fileno(d)]], [], []))
 
     def on_write(d):
-        current.switch(([], [ds_write[get_fileno(d)]], []))
+        current_switch(([], [ds_write[get_fileno(d)]], []))
 
     def on_timeout2():
-        current.switch(([], [], []))
+        current_switch(([], [], []))
 
     def on_timeout():
         # ensure that BaseHub.run() has a chance to call self.wait()
@@ -73,10 +73,15 @@ def select(read_list, write_list, error_list, timeout=None):
     if timeout is not None:
         timers.append(hub.schedule_call_global(timeout, on_timeout))
 
-    for fileno in ds_read:
-        listeners.append(hub.add(hub.READ, fileno, on_read, current.throw, lambda: None))
-    for fileno in ds_write:
-        listeners.append(hub.add(hub.WRITE, fileno, on_write, current.throw, lambda: None))
+    throw = current.throw
+    listeners = [
+        hub.add(ev, fileno, on, throw, lambda: None)
+        for fds, ev, on in (
+            (ds_read, hub.READ, on_read),
+            (ds_write, hub.WRITE, on_write)
+        )
+        for fileno in fds
+    ]
 
     try:
         try:
