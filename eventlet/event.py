@@ -118,7 +118,7 @@ class Event(object):
             self._waiters.insert(0, current)
             timer = None
             if timeout is not None:
-                timer = active_hub.inst.schedule_call_local(timeout, self._do_send, None, None, current)
+                timer = active_hub.inst.schedule_call_local(timeout, do_send, None, None, current)
             result = active_hub.inst.switch()
             if timer is not None:
                 timer.cancel()
