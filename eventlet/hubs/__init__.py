@@ -128,28 +128,25 @@ def trampoline(fd, read=None, write=None, timeout=None,
 
     .. note :: |internal|
     """
-    t = None
+    assert read == write, 'not allowed to trampoline for reading and writing'
+
     hub = active_hub.inst
     current = greenlet.getcurrent()
     assert hub.greenlet is not current, 'do not call blocking functions from the mainloop'
-    assert not (read and write), 'not allowed to trampoline for reading and writing'
 
-    try:
-        fileno = fd.fileno()
-    except AttributeError:
-        fileno = fd
     if timeout is not None:
         def _timeout(exc):
             # This is only useful to insert debugging
             current.throw(exc)
         t = hub.schedule_call_global(timeout, _timeout, timeout_exc)
+    else:
+        t = None
     try:
-        if read:
-            listener = hub.add(hub.READ, fileno, current.switch, current.throw, mark_as_closed)
-        elif write:
-            listener = hub.add(hub.WRITE, fileno, current.switch, current.throw, mark_as_closed)
-        else:
-            listener = None
+        listener = hub.add(hub.WRITE if write else hub.READ,
+                           getattr(fd, 'fileno', fd),
+                           current.switch,
+                           current.throw,
+                           mark_as_closed)
         try:
             return hub.switch()
         finally:
