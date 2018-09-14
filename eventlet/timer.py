@@ -82,7 +82,7 @@ class LocalTimer(Timer):
     __slots__ = Timer.__slots__ + ['greenlet']
 
     def __init__(self, *args, **kwargs):
-        Timer.__init__(self, *args, **kwargs)
+        super(LocalTimer, self).__init__(*args, **kwargs)
         self.greenlet = greenlet.getcurrent()
 
     @property
@@ -103,4 +103,7 @@ class LocalTimer(Timer):
 
     def cancel(self):
         self.greenlet = None
-        Timer.cancel(self)
+        if self.called:
+            return
+        self.called = True
+        self.tpl = None
