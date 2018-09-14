@@ -161,6 +161,7 @@ class Event(object):
         Use :meth:`reset` between :meth:`send` s to reuse an event object.
         """
         assert self._result is NOT_USED, 'Trying to re-send() an already-triggered event.'
+        # _result & _exc for a new waiter call(wait) after send
         self._result = result
         if exc is not None:
             if not isinstance(exc, tuple):
@@ -168,9 +169,10 @@ class Event(object):
             self._exc = exc
         schedule_call_global = active_hub.inst.schedule_call_global
         while self._waiters:
-            schedule_call_global(0, self._do_send, self._result, exc, self._waiters.pop(0))
+            schedule_call_global(0, self._do_send, result, exc, self._waiters.pop(0))
 
-    def _do_send(self, result, exc, waiter):
+    @staticmethod
+    def _do_send(result, exc, waiter):
         if exc is None:
             waiter.switch(result)
         else:
