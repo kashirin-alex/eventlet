@@ -390,7 +390,7 @@ class LightQueue(object):
 
 
 class ItemWaiter(Waiter):
-    __slots__ = ['item', 'block']
+    __slots__ = Waiter.__slots__+['item', 'block']
 
     def __init__(self, item, block):
         Waiter.__init__(self)
