@@ -74,14 +74,15 @@ def select(read_list, write_list, error_list, timeout=None):
         timers.append(hub.schedule_call_global(timeout, on_timeout))
 
     throw = current.throw
-    listeners = [
-        hub.add(ev, fileno, on, throw, lambda: None)
+    add_listener = hub.add
+    listeners = (
+        add_listener(ev, fileno, on, throw, lambda: None)
         for fds, ev, on in (
             (ds_read, hub.READ, on_read),
             (ds_write, hub.WRITE, on_write)
         )
         for fileno in fds
-    ]
+    )
 
     try:
         try:
