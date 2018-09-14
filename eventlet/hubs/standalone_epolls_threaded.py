@@ -23,8 +23,8 @@ WRITE = 1
 EVENT_TYPES = (READ, WRITE)
 DEFAULT_SLEEP = 60.0
 
-heappush = heapq.heappush
-heappop = heapq.heappop
+# heappush = heapq.heappush
+# heappop = heapq.heappop
 SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
 
 EXC_MASK = select.POLLERR | select.POLLHUP
@@ -56,8 +56,18 @@ class Hub(HubSkeleton):
         #
 
     def add_timer(self, timer):
-        timer.scheduled_time = self.clock() + timer.seconds
-        heappush(self.timers, (timer.scheduled_time, timer))
+        scheduled_time = self.clock() + timer.seconds
+
+        k = 0
+        for t in self.timers:
+            if t.scheduled_time > scheduled_time:
+                k += 1
+                continue
+            break
+
+        timer.scheduled_time = scheduled_time
+        self.timers.insert(k, timer)
+        # heappush(self.timers, (timer.scheduled_time, timer))
         return timer
         #
 
@@ -182,18 +192,22 @@ class Hub(HubSkeleton):
         while not self.stopping:
 
             if timers:
-                exp, event = timers[0]   # current evaluated event
-                if event.called:
-                    heappop(timers)      # remove called/cancelled timer
+                t = timers[-1]
+                # exp, t = timers[0]   # current evaluated timer
+                if t.called:
+                    timers.pop(-1)
+                    # heappop(timers)  # remove called/cancelled timer
                     continue
 
-                due = exp - clock()
+                due = t.scheduled_time - clock()
+                # due = exp - clock()
                 if due < 0:
-                    heappop(timers)      # remove evaluated event
+                    timers.pop(-1)
+                    # heappop(timers)   # remove evaluated timer
                     delay += due
                     delay /= 2
                     try:
-                        event()
+                        t()
                     except SYSTEM_EXCEPTIONS:
                         raise
                     except:
@@ -206,9 +220,9 @@ class Hub(HubSkeleton):
             else:
                 due = DEFAULT_SLEEP
 
-            while closed:                   # Ditch all closed fds first.
+            while closed:                # Ditch all closed fds first.
                 l = pop_closed(-1)
-                if not l.greenlet.dead:     # There's no point signalling a greenlet that's already dead.
+                if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
                     l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
             while fd_events:
