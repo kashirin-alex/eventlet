@@ -101,8 +101,8 @@ class LocalTimer(Timer):
         self.greenlet = None
 
     def cancel(self):
-        self.greenlet = None
         if self.called:
             return
         self.called = True
         self.tpl = None
+        self.greenlet = None

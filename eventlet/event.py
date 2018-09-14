@@ -158,7 +158,7 @@ class Event(object):
         Use :meth:`reset` between :meth:`send` s to reuse an event object.
         """
         assert self._result is NOT_USED, 'Trying to re-send() an already-triggered event.'
-        # _result & _exc for a new waiter call(wait) after send
+        # _result & _exc are for a new waiter call(wait) after send
         self._result = result
         if exc is not None:
             if not isinstance(exc, tuple):
