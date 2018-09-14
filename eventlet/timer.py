@@ -60,7 +60,6 @@ class Timer(object):
         cb, args, kw = self.tpl
         try:
             cb(*args, **kw)
-            # self.tpl[0](*self.tpl[1], **self.tpl[2])
         finally:
             self.tpl = None
 
@@ -99,7 +98,6 @@ class LocalTimer(Timer):
         if self.greenlet is not None and self.greenlet.dead:
             return
 
-        # self.tpl[0](*self.tpl[1], **self.tpl[2])
         cb, args, kw = self.tpl
         cb(*args, **kw)
 
