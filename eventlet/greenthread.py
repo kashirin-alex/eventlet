@@ -155,14 +155,16 @@ class GreenThread(greenlet):
         self._exit_event = eventlet.Event()
         self._resolving_links = False
         self._exit_funcs = None
+        self.wait = self._exit_event.wait
 
-    def wait(self):
-        """ Returns the result of the main function of this GreenThread.  If the
-        result is a normal return value, :meth:`wait` returns it.  If it raised
-        an exception, :meth:`wait` will raise the same exception (though the
-        stack trace will unavoidably contain some frames from within the
-        greenthread module)."""
-        return self._exit_event.wait()
+    # _deprecated
+    #  wait(self):Returns the result of the main function of this GreenThread.  If the
+    #    result is a normal return value, :meth:`wait` returns it.  If it raised
+    #    an exception, :meth:`wait` will raise the same exception (though the
+    #    stack trace will unavoidably contain some frames from within the
+    #    greenthread module).
+    #    return self._exit_event.wait()
+    #    """
 
     def link(self, func, *curried_args, **curried_kwargs):
         """ Set up a function to be called with the results of the GreenThread.
@@ -224,18 +226,20 @@ class GreenThread(greenlet):
         finally:
             self._resolving_links = False
 
-    def kill(self, *throw_args):
-        """Kills the greenthread using :func:`kill`.  After being killed
-        all calls to :meth:`wait` will raise *throw_args* (which default
-        to :class:`greenlet.GreenletExit`)."""
-        return kill(self, *throw_args)
+    kill = kill
+    # def kill(self, *throw_args):
+    #    """Kills the greenthread using :func:`kill`.  After being killed
+    #    all calls to :meth:`wait` will raise *throw_args* (which default
+    #    to :class:`greenlet.GreenletExit`)."""
+    #    return kill(self, *throw_args)
 
-    def cancel(self, *throw_args):
-        """Kills the greenthread using :func:`kill`, but only if it hasn't
-        already started running.  After being canceled,
-        all calls to :meth:`wait` will raise *throw_args* (which default
-        to :class:`greenlet.GreenletExit`)."""
-        return cancel(self, *throw_args)
+    cancel = cancel
+    # def cancel(self, *throw_args):
+    #    """Kills the greenthread using :func:`kill`, but only if it hasn't
+    #    already started running.  After being canceled,
+    #    all calls to :meth:`wait` will raise *throw_args* (which default
+    #    to :class:`greenlet.GreenletExit`)."""
+    #    return cancel(self, *throw_args)
 
 
 def cancel(g, *throw_args):
