@@ -88,15 +88,10 @@ class Hub(BaseHub):
         except:
             return
 
-        for fileno, event in presult:
-            if event & POLLNVAL:
-                self.remove_descriptor(fileno)
-                continue
-            if event & EXC_MASK:
-                self.add_fd_event_error(fileno)
-                continue
-            if event & READ_MASK:
-                self.add_fd_event_read(fileno)
-            if event & WRITE_MASK:
-                self.add_fd_event_write(fileno)
-
+        for f, ev in presult:
+            if ev & EXC_MASK or ev & WRITE_MASK:
+                self.add_listener_events((self.WRITE, f))
+            if ev & EXC_MASK or ev & READ_MASK:
+                self.add_listener_events((self.READ, f))
+            if ev & POLLNVAL:
+                self.remove_descriptor(f)

@@ -1,3 +1,7 @@
+import sys
+
+from eventlet.support import clear_sys_exc_info
+
 from eventlet.hubs.v1_base import HubBase
 
 
@@ -26,17 +30,22 @@ class BaseHub(HubBase):
             prepare_timers = self.prepare_timers
 
             closed = self.closed
+            pop_closed = self.closed.pop
             close_one = self.close_one
             wait = self.wait
-            listeners_events = self.listeners_events
-            listeners_events_popleft = self.listeners_events.popleft
-            process_listener_event = self.process_listener_event
+
+            fd_events = self.listeners_events
+            pop_fd_event = self.listeners_events.popleft
+            listeners = self.listeners
+
+            squelch_exception = self.squelch_exception
+            sys_exec = self.SYSTEM_EXCEPTIONS
 
             while not self.stopping:
 
                 # Ditch all closed fds first.
                 while closed:
-                    close_one(closed.pop(-1))
+                    close_one(pop_closed(-1))
 
                 prepare_timers()
                 fire_timers(self.clock())
@@ -51,8 +60,17 @@ class BaseHub(HubBase):
                 wait(sleep_time)
 
                 # Process all fds events
-                while listeners_events:
-                    process_listener_event(listeners_events_popleft())
+                while fd_events:
+                    ev, fileno = pop_fd_event()
+                    try:
+                        l = listeners[ev].get(fileno)
+                        if l:
+                            l.cb(fileno)
+                    except sys_exec:
+                        raise
+                    except:
+                        squelch_exception(fileno, sys.exc_info())
+                        clear_sys_exc_info()
 
             else:
                 del self.timers[:]

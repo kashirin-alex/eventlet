@@ -97,6 +97,6 @@ class Hub(BaseHub):
             fileno = event.ident
             evfilt = event.filter
             if evfilt == self.FILTERS[self.READ]:
-                self.add_fd_event_read(fileno)
+                self.add_listener_events((self.READ, fileno))
             if evfilt == self.FILTERS[self.WRITE]:
-                self.add_fd_event_write(fileno)
+                self.add_listener_events((self.WRITE, fileno))

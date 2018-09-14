@@ -480,9 +480,6 @@ class Hub(object):
             sys.stderr.flush()
             clear_sys_exc_info()
 
-    def add_listener_event(self, *evtype_fileno):
-        self.listeners_events.append(evtype_fileno)
-
     def add_timer(self, timer):
         timer.scheduled_time = self.clock() + timer.seconds
         self.next_timers.append(timer)

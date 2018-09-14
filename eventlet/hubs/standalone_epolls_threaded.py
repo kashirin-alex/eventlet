@@ -122,20 +122,13 @@ class Hub(HubSkeleton):
         no_one_waiting = self.event_notifier.is_set
         notify = self.event_notifier.set
 
-        get_reader = self.listeners[READ].get
-        get_writer = self.listeners[WRITE].get
-
         while not self.stopping:
             try:
                 for f, ev in poll(DEFAULT_SLEEP):
-                    if ev & EXC_MASK or ev & WRITE_MASK:
-                        l = get_writer(f)
-                        if l:
-                            add_events(l)
                     if ev & EXC_MASK or ev & READ_MASK:
-                        l = get_reader(f)
-                        if l:
-                            add_events(l)
+                        add_events((READ, f))
+                    if ev & EXC_MASK or ev & WRITE_MASK:
+                        add_events((WRITE, f))
                     if ev & POLLNVAL:
                         self.remove_descriptor(f)
 
@@ -168,6 +161,7 @@ class Hub(HubSkeleton):
         wait = self.event_notifier.wait
         wait_clear = self.event_notifier.clear
 
+        listeners = self.listeners
         timers = self.timers
 
         closed = self.closed
@@ -186,10 +180,9 @@ class Hub(HubSkeleton):
                 if t.called:
                     heappop(timers)  # remove called/cancelled timer
                     continue
-
                 due = exp - clock()
                 if due < 0:
-                    heappop(timers)   # remove evaluated timer
+                    heappop(timers)  # remove evaluated timer
                     delay += due
                     delay /= 2
                     try:
@@ -198,32 +191,31 @@ class Hub(HubSkeleton):
                         raise
                     except:
                         pass
-                    due = 0
                 else:
                     due += delay
-                    if due < 0:
-                        due = 0
             else:
                 due = DEFAULT_SLEEP
 
-            while closed:                # Ditch all closed fds first.
-                l = pop_closed(-1)
-                if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
-                    l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
+            if not fd_events and due > 0:
+                wait(due)  # wait for fd signals
+                wait_clear()
 
             while fd_events:
-                l = pop_fd_event()
+                ev, fileno = pop_fd_event()
                 try:
-                    l.cb(l.fileno)
+                    l = listeners[ev].get(fileno)
+                    if l:
+                        l.cb(fileno)
                 except SYSTEM_EXCEPTIONS:
                     raise
                 except:
-                    squelch_exception(l.fileno, sys.exc_info())
+                    squelch_exception(fileno, sys.exc_info())
                     clear_sys_exc_info()
-            else:
-                if not timers:
-                    wait(due)
-                    wait_clear()
+
+            while closed:                # Ditch all closed fds.
+                l = pop_closed(-1)
+                if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
+                    l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
         del self.timers[:]
         del self.listeners_events[:]
@@ -335,7 +327,8 @@ class Hub(HubSkeleton):
             for l in [self.listeners[evtype].pop(fileno, None)]+self.secondaries[evtype].pop(fileno, []):
                 if l is None:
                     continue
-                self.add_listener_events(l)
+                self.add_listener_events((evtype, fileno))
+
         try:
             self.poll.unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):

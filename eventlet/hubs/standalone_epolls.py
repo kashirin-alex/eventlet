@@ -163,12 +163,12 @@ class Hub(HubSkeleton):
             try:
                 for f, ev in poll(due):
                     try:
-                        if ev & EXC_MASK or ev & WRITE_MASK:
-                            l = get_writer(f)
-                            if l is not None:
-                                l.cb(f)
                         if ev & EXC_MASK or ev & READ_MASK:
                             l = get_reader(f)
+                            if l is not None:
+                                l.cb(f)
+                        if ev & EXC_MASK or ev & WRITE_MASK:
+                            l = get_writer(f)
                             if l is not None:
                                 l.cb(f)
                         if ev & POLLNVAL:

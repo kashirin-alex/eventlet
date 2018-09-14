@@ -39,20 +39,19 @@ class Hub(BaseHub):
 
         try:
             rs, ws, es = select.select(readers, writers, readers + writers, seconds)
-            for add_event, events in ((self.add_fd_event_read, rs),
-                                      (self.add_fd_event_write, ws),
-                                      (self.add_fd_event_error, es)):
-                for fileno in events:
-                    add_event(fileno)
-
         except select.error as e:
-            errn = support.get_errno(e)
-            if errn == errno.EINTR:
-                return
-            elif errn in BAD_SOCK:
+            if support.get_errno(e) in BAD_SOCK:
                 self._remove_bad_fds()
-                return
+            return
         except self.SYSTEM_EXCEPTIONS:
             raise
         except:
             return
+
+        for fileno in rs:
+            self.add_listener_events((self.READ, fileno))
+        for fileno in ws:
+            self.add_listener_events((self.WRITE, fileno))
+        for fileno in es:
+            self.add_listener_events((self.READ, fileno))
+            self.add_listener_events((self.WRITE, fileno))

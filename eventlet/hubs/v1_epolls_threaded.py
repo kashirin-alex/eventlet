@@ -85,29 +85,20 @@ class Hub(BaseHub):
         try:
             presult = self.poll.poll(self.DEFAULT_SLEEP)
             if not presult:
-                ev_sleep(3)
                 return
         except (IOError, select.error) as e:
             if support.get_errno(e) == errno.EINTR:
-                ev_sleep(3)
+                ev_sleep(1)
                 return
             raise
         except self.SYSTEM_EXCEPTIONS:
             raise
-        except:
-            ev_sleep(3)
-            return
 
-        for fileno, event in presult:
-            if event & POLLNVAL:
-                self.remove_descriptor(fileno)
-                continue
-            if event & EXC_MASK:
-                self.add_fd_event_error(fileno)
-                continue
-            if event & READ_MASK:
-                self.add_fd_event_read(fileno)
-            if event & WRITE_MASK:
-                self.add_fd_event_write(fileno)
-        ev_sleep(0)
+        for f, ev in presult:
+            if ev & EXC_MASK or ev & READ_MASK:
+                self.add_listener_events((self.READ, f))
+            if ev & EXC_MASK or ev & WRITE_MASK:
+                self.add_listener_events((self.WRITE, f))
+            if ev & POLLNVAL:
+                self.remove_descriptor(f)
         #

@@ -39,10 +39,7 @@ class HubBase(HubSkeleton):
         self.timer_delay = 0
 
         self.listeners_events = deque()
-        #
-
-    def add_listener_event(self, listener):
-        self.listeners_events.append(listener)
+        self.add_listener_events = self.listeners_events.append
         #
 
     def has_listeners_fileno(self, fileno):
@@ -97,23 +94,6 @@ class HubBase(HubSkeleton):
         else:
             bucket[fileno] = listener
         return listener
-        #
-
-    def add_fd_event_read(self, fileno):
-        listener = self.listeners_r.get(fileno)
-        if listener:
-            self.add_listener_event(listener)
-        #
-
-    def add_fd_event_write(self, fileno):
-        listener = self.listeners_w.get(fileno)
-        if listener:
-            self.add_listener_event(listener)
-        #
-
-    def add_fd_event_error(self, fileno):
-        self.add_fd_event_read(fileno)
-        self.add_fd_event_write(fileno)
         #
 
     def _obsolete(self, fileno):
@@ -183,12 +163,11 @@ class HubBase(HubSkeleton):
     def remove_descriptor_from_listeners(self, fileno):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
-        for evtype in event_types:
-            l = self.listeners[evtype].pop(fileno, None)
-            if l:
-                self.add_listener_event(l)
-            for l in self.secondaries[evtype].pop(fileno, []):
-                self.add_listener_event(l)
+        for evtype in self.event_types:
+            for l in [self.listeners[evtype].pop(fileno, None)]+self.secondaries[evtype].pop(fileno, []):
+                if l is None:
+                    continue
+                self.add_listener_events((evtype, fileno))
         #
 
     @staticmethod
@@ -214,35 +193,6 @@ class HubBase(HubSkeleton):
     # Not Implemented
     def wait(self, seconds=None):
         raise NotImplementedError("Implement this in a subclass")
-
-    def process_listener_event(self, listener):
-        if self.debug_blocking:
-            self.block_detect_pre()
-        try:
-            listener.cb(listener.fileno)
-        except self.SYSTEM_EXCEPTIONS:
-            raise
-        except:
-            self.squelch_exception(listener.fileno, sys.exc_info())
-            support.clear_sys_exc_info()
-        if self.debug_blocking:
-            self.block_detect_post()
-        #
-
-    def process_timer_event(self, timer):
-        if self.debug_blocking:
-            self.block_detect_pre()
-        try:
-            timer()
-        except self.SYSTEM_EXCEPTIONS:
-            raise
-        except:
-            if self.debug_exceptions:
-                self.squelch_generic_exception(sys.exc_info())
-            support.clear_sys_exc_info()
-        if self.debug_blocking:
-            self.block_detect_post()
-        #
 
     @staticmethod
     def default_sleep():
