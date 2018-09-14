@@ -175,8 +175,8 @@ class Event(object):
     def _do_send(result, exc, waiter):
         if exc is None:
             waiter.switch(result)
-        else:
-            waiter.throw(*exc)
+            return
+        waiter.throw(*exc)
 
     def send_exception(self, *args):
         """Same as :meth:`send`, but sends an exception to waiters.
