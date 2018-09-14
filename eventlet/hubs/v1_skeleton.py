@@ -4,6 +4,7 @@ import signal
 import eventlet
 import sys
 from eventlet import support
+from eventlet import hubs
 
 if os.environ.get('EVENTLET_CLOCK'):
     mod = os.environ.get('EVENTLET_CLOCK').rsplit('.', 1)
@@ -119,8 +120,8 @@ class HubSkeleton(object):
         self._old_signal_handler = None
         self.g_prevent_multiple_readers = True
 
-        eventlet.hubs['notify_close'] = self.notify_close
-        eventlet.hubs['notify_opened'] = self.mark_as_reopened
+        hubs.notify_close = self.notify_close
+        hubs.notify_opened = self.mark_as_reopened
         #
 
     # Not Implemented
