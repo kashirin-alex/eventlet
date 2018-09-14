@@ -128,7 +128,7 @@ def trampoline(fd, read=None, write=None, timeout=None,
 
     .. note :: |internal|
     """
-    assert read == write, 'not allowed to trampoline for reading and writing'
+    assert read != write, 'not allowed to trampoline for reading and writing'
 
     hub = active_hub.inst
     current = greenlet.getcurrent()
