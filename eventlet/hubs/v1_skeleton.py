@@ -4,7 +4,6 @@ import signal
 import eventlet
 import sys
 from eventlet import support
-from eventlet import hubs
 
 if os.environ.get('EVENTLET_CLOCK'):
     mod = os.environ.get('EVENTLET_CLOCK').rsplit('.', 1)
@@ -119,9 +118,6 @@ class HubSkeleton(object):
         self.debug_blocking_resolution = 1
         self._old_signal_handler = None
         self.g_prevent_multiple_readers = True
-
-        hubs.notify_close = self.notify_close
-        hubs.notify_opened = self.mark_as_reopened
         #
 
     # Not Implemented
@@ -237,15 +233,5 @@ class HubSkeleton(object):
 
     # Not Implemented
     def add_timer(self, timer):
-        raise NotImplementedError("Implement this in a subclass")
-        #
-
-    # Not Implemented
-    def mark_as_reopened(self, *a, **kw):
-        raise NotImplementedError("Implement this in a subclass")
-        #
-
-    # Not Implemented
-    def notify_close(self, *a, **kw):
         raise NotImplementedError("Implement this in a subclass")
         #
