@@ -119,8 +119,8 @@ class HubSkeleton(object):
         self._old_signal_handler = None
         self.g_prevent_multiple_readers = True
 
-        eventlet.hubs.notify_close = self.notify_close
-        eventlet.hubs.notify_opened = self.mark_as_reopened
+        eventlet.hubs['notify_close'] = self.notify_close
+        eventlet.hubs['notify_opened'] = self.mark_as_reopened
         #
 
     # Not Implemented
