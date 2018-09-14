@@ -141,10 +141,12 @@ def trampoline(fd, read=None, write=None, timeout=None,
         t = hub.schedule_call_global(timeout, _timeout, timeout_exc)
     else:
         t = None
-
+    try:
+        fileno = fd.fileno()
+    except AttributeError:
+        fileno = fd
     listener = hub.add(hub.WRITE if write else hub.READ,
-                       getattr(fd, 'fileno', lambda: fd)(),
-                       current.switch, current.throw, mark_as_closed)
+                       fileno, current.switch, current.throw, mark_as_closed)
     try:
         try:
             return hub.switch()
