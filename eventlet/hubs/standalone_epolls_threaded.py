@@ -49,9 +49,9 @@ class Hub(HubSkeleton):
 
         self.listeners_events = deque()
         self.add_listener_events = self.listeners_events.append
-
         self.poll = select.epoll()
-        self.event_notifier = orig_threading.Event()
+        self.event_has = orig_threading.Event()
+        self.event_want = orig_threading.Event()
         self.events_waiter = None
         #
 
@@ -117,23 +117,26 @@ class Hub(HubSkeleton):
     def waiting_thread(self):
         poll = self.poll.poll
         fd_events = self.listeners_events
-        add_events = self.add_listener_events
+        add_event = self.listeners_events.append
 
-        no_one_waiting = self.event_notifier.is_set
-        notify = self.event_notifier.set
+        has = self.event_has.set
+        want = self.event_want.wait
+        want_clear = self.event_want.clear
 
         while not self.stopping:
             try:
                 for f, ev in poll(DEFAULT_SLEEP):
                     if ev & EXC_MASK or ev & READ_MASK:
-                        add_events((READ, f))
+                        if (f, READ) not in fd_events:
+                            add_event((f, READ))
                     if ev & EXC_MASK or ev & WRITE_MASK:
-                        add_events((WRITE, f))
+                        if (f, WRITE) not in fd_events:
+                            add_event((f, WRITE))
                     if ev & POLLNVAL:
                         self.remove_descriptor(f)
-
-                if fd_events and not no_one_waiting():
-                    notify()
+                has()
+                want(1)
+                want_clear()
             except (IOError, select.error) as e:
                 if get_errno(e) == errno.EINTR:
                     ev_sleep(1)
@@ -157,9 +160,10 @@ class Hub(HubSkeleton):
         if self.events_waiter is None or not self.events_waiter.is_alive():
             self.events_waiter = orig_threading.Thread(target=self.waiting_thread)
             self.events_waiter.start()
-        self.event_notifier.set()
-        wait = self.event_notifier.wait
-        wait_clear = self.event_notifier.clear
+
+        wait = self.event_has.wait
+        wait_clear = self.event_has.clear
+        want = self.event_want.set
 
         listeners = self.listeners
         timers = self.timers
@@ -172,42 +176,34 @@ class Hub(HubSkeleton):
 
         squelch_exception = self.squelch_exception
         clock = self.clock
-        delay = 0
 
         while not self.stopping:
-
-            if timers:
+            when = clock()
+            while timers:
                 exp, t = timers[0]   # current evaluated timer
                 if t.called:
                     heappop(timers)  # remove called/cancelled timer
                     continue
-                due = exp - clock()
-                if due < 0:
-                    heappop(timers)  # remove evaluated timer
-                    delay += due
-                    delay /= 2
-                    try:
-                        t()
-                    except SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        pass
-                else:
-                    due += delay
+                due = exp - when
+                if due > 0:
+                    break
+                heappop(timers)  # remove evaluated timer
+                try:
+                    t()
+                except SYSTEM_EXCEPTIONS:
+                    raise
+                except:
+                    pass
+                continue
             else:
                 due = DEFAULT_SLEEP
 
-            while closed:                # Ditch all closed fds.
-                l = pop_closed(-1)
-                if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
-                    l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
-
-            if not fd_events and due > 0:
+            if not fd_events:
                 wait(due)  # wait for fd signals
                 wait_clear()
 
             while fd_events:
-                ev, fileno = pop_fd_event()
+                fileno, ev = fd_events[0]
                 try:
                     l = listeners[ev].get(fileno)
                     if l:
@@ -217,6 +213,13 @@ class Hub(HubSkeleton):
                 except:
                     squelch_exception(fileno, sys.exc_info())
                     clear_sys_exc_info()
+                pop_fd_event()
+            want()
+
+            while closed:                # Ditch all closed fds first.
+                l = pop_closed(-1)
+                if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
+                    l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
         del self.timers[:]
         del self.listeners_events[:]
