@@ -54,13 +54,13 @@ class Hub(HubSkeleton):
 
     def add_timer(self, timer):
         fileno = int(timer_create(TIMER_CLOCK, TIMER_FLAGS))
-        timer.fileno = fileno
         self.timers[fileno] = timer
         self.poll_register(fileno, TIMER_MASK)
         seconds = timer.seconds
         if seconds < MIN_TIMER:  # zero disarms a timer
             seconds = MIN_TIMER
         timer_settime(fileno, 0, seconds, 0)
+        timer.fileno = fileno
         return timer
         #
 
