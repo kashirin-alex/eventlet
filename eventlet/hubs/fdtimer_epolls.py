@@ -58,7 +58,7 @@ class Hub(HubSkeleton):
         self.timers[fileno] = timer
         self.poll_register(fileno, TIMER_MASK)
         seconds = timer.seconds
-        if seconds < MIN_TIMER:
+        if seconds < MIN_TIMER:  # zero disarms a timer
             seconds = MIN_TIMER
         timer_settime(fileno, 0, seconds, 0)
         # print ('add_timer', fileno, tfd.gettime())
@@ -178,9 +178,6 @@ class Hub(HubSkeleton):
                                 raise
                             except:
                                 pass
-                            # print ('timer', ev, f, [t.seconds for t in timers.values() if t.seconds < 1])
-                            #  debug if all zero timers executed
-                            print ('timers', len(timers))
                             continue
 
                         if ev & EXC_MASK or ev & READ_MASK:
