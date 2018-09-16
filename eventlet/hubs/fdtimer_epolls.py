@@ -49,10 +49,12 @@ class Hub(HubSkeleton):
 
         self.poll = select.epoll()
         self.poll_register = self.poll.register
+        self.poll_unregister = self.poll.unregister
         #
 
     def add_timer(self, timer):
         fileno = int(timer_create(TIMER_CLOCK, TIMER_FLAGS))
+        timer.fileno = fileno
         self.timers[fileno] = timer
         self.poll_register(fileno, TIMER_MASK)
         seconds = timer.seconds
@@ -61,6 +63,19 @@ class Hub(HubSkeleton):
         timer_settime(fileno, 0, seconds, 0)
         # print ('add_timer', fileno, tfd.gettime())
         return timer
+        #
+
+    def timer_canceled(self, timer):
+        fileno = timer.fileno
+        try:
+            self.poll_unregister(fileno)
+        except:
+            pass
+        try:
+            timer_settime(fileno, 0, 0, 0)
+        except:
+            pass
+        self.timers.pop(fileno, None)
         #
 
     def _obsolete(self, fileno):
@@ -142,7 +157,7 @@ class Hub(HubSkeleton):
 
         while not self.stopping:
             try:
-                for f, ev in poll(-1, 256):
+                for f, ev in poll(-1):
                     try:
                         if f in timers:
                             # release resources first
@@ -165,6 +180,7 @@ class Hub(HubSkeleton):
                                 pass
                             # print ('timer', ev, f, [t.seconds for t in timers.values() if t.seconds < 1])
                             #  debug if all zero timers executed
+                            print ('timers', len(timers))
                             continue
 
                         if ev & EXC_MASK or ev & READ_MASK:

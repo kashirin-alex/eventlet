@@ -10,7 +10,7 @@ _g_debug = False
 
 
 class Timer(object):
-    __slots__ = ['scheduled_time', 'seconds', 'tpl', 'called', 'traceback']
+    __slots__ = ['scheduled_time', 'seconds', 'tpl', 'fileno', 'called', 'traceback']
 
     def __init__(self, seconds, cb, *args, **kw):
         """Create a timer.
@@ -26,7 +26,7 @@ class Timer(object):
         self.tpl = cb, args, kw
         self.called = False
         self.scheduled_time = 0
-
+        self.fileno = None
         if _g_debug:
             self.traceback = six.StringIO()
             traceback.print_stack(file=self.traceback)
@@ -68,6 +68,7 @@ class Timer(object):
         if self.called:
             return
         self.called = True
+        hubs.active_hub.inst.timer_canceled(self)
         self.tpl = None
 
     # No default ordering in 3.x. heapq uses <
