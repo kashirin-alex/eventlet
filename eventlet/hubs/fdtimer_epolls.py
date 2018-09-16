@@ -61,21 +61,15 @@ class Hub(HubSkeleton):
         if seconds < MIN_TIMER:  # zero disarms a timer
             seconds = MIN_TIMER
         timer_settime(fileno, 0, seconds, 0)
-        # print ('add_timer', fileno, tfd.gettime())
         return timer
         #
 
     def timer_canceled(self, timer):
-        fileno = timer.fileno
         try:
-            os.close(fileno)
+            os.close(timer.fileno)
         except:
             pass
-        try:
-            timer_settime(fileno, 0, 0, 0)
-        except:
-            pass
-        self.timers.pop(fileno, None)
+        self.timers.pop(timer.fileno, None)
         #
 
     def _obsolete(self, fileno):
@@ -161,8 +155,8 @@ class Hub(HubSkeleton):
                             # release resources first
                             try:
                                 os.close(f)
-                            except Exception as e:
-                                print (f, e)
+                            except:
+                                pass
                             # exec timer
                             try:
                                 t = pop_timer(f)
