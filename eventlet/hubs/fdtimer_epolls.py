@@ -68,7 +68,7 @@ class Hub(HubSkeleton):
     def timer_canceled(self, timer):
         fileno = timer.fileno
         try:
-            self.poll_unregister(fileno)
+            os.close(fileno)
         except:
             pass
         try:
@@ -147,8 +147,6 @@ class Hub(HubSkeleton):
 
         timers = self.timers
         pop_timer = self.timers.pop
-        close_timer = os.close
-        unregister = self.poll.unregister
 
         poll = self.poll.poll
         get_reader = self.listeners[READ].get
@@ -162,11 +160,7 @@ class Hub(HubSkeleton):
                         if f in timers:
                             # release resources first
                             try:
-                                close_timer(f)
-                            except Exception as e:
-                                print (f, e)
-                            try:
-                                unregister(f)
+                                os.close(f)
                             except Exception as e:
                                 print (f, e)
                             # exec timer
@@ -194,10 +188,10 @@ class Hub(HubSkeleton):
                         squelch_exception(f, sys.exc_info())
                         clear_sys_exc_info()
 
-                    while closed:  # Ditch all closed fds first.
-                        l = pop_closed(-1)
-                        if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
-                            l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
+                while closed:  # Ditch all closed fds first.
+                    l = pop_closed(-1)
+                    if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
+                        l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
             except (IOError, select.error) as e:
                 if get_errno(e) == errno.EINTR:
