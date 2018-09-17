@@ -44,18 +44,32 @@ class Hub(HubSkeleton):
         self.listeners = ({}, {})
         self.listeners_r = self.listeners[READ]
         self.listeners_w = self.listeners[WRITE]
-        self.timers = {}
-        self.timers_immediate = []
+        self.get_reader = self.listeners_r.get
+        self.get_writer = self.listeners_w.get
+
         self.secondaries = ({}, {})
+        self.pop_sec_reader = self.secondaries[READ].pop
+        self.pop_sec_writer = self.secondaries[WRITE].pop
+
+        self.timers = {}
+        self.pop_timer = self.timers.pop
+
+        self.timers_immediate = []
+        self.add_immediate_timer = self.timers_immediate.append
+
         self.closed = []
+        self.add_closed = self.timers_immediate.append
 
         self.poll = select.epoll()
+        self.poll_register = self.poll.register
+        self.poll_unregister = self.poll.unregister
+        self.poll_modify = self.poll.modify
         #
 
     def add_timer(self, timer):
         seconds = timer.seconds
         if seconds == 0:
-            self.timers_immediate.append(timer)
+            self.add_immediate_timer(timer)
             return timer
         elif seconds < MIN_TIMER:  # zero and below 1 ns disarms a timer
             seconds = MIN_TIMER
@@ -63,7 +77,7 @@ class Hub(HubSkeleton):
         fileno = int(timer_create(TIMER_CLOCK, TIMER_FLAGS))
         timer.fileno = fileno
         self.timers[fileno] = timer
-        self.poll.register(fileno, TIMER_MASK)
+        self.poll_register(fileno, TIMER_MASK)
         timer_settime(fileno, 0, seconds, 0)
         return timer
         #
@@ -73,7 +87,7 @@ class Hub(HubSkeleton):
             os.close(timer.fileno)
         except:
             pass
-        self.timers.pop(timer.fileno, None)
+        self.pop_timer(timer.fileno, None)
         #
 
     def _obsolete(self, fileno):
@@ -82,23 +96,23 @@ class Hub(HubSkeleton):
             their greenlets queued up to send.
         """
         found = False
-        for listener in self.secondaries[READ].pop(fileno, [])+self.secondaries[WRITE].pop(fileno, []):
+        for listener in self.pop_sec_reader(fileno, [])+self.pop_sec_writer(fileno, []):
             found = True
-            self.closed.append(listener)
+            self.add_closed(listener)
             listener.defang()
 
         # For the primary listeners, we actually need to call remove,
         # which may modify the underlying OS polling objects.
-        listener = self.listeners[READ].get(fileno)
+        listener = self.get_reader(fileno)
         if listener:
             found = True
-            self.closed.append(listener)
+            self.add_closed(listener)
             self.remove(listener)
             listener.defang()
-        listener = self.listeners[WRITE].get(fileno)
+        listener = self.get_writer(fileno)
         if listener:
             found = True
-            self.closed.append(listener)
+            self.add_closed(listener)
             self.remove(listener)
             listener.defang()
         return found
@@ -145,11 +159,17 @@ class Hub(HubSkeleton):
         self.running = True
         self.stopping = False
 
+        closed = self.closed
+        pop_closed = self.closed.pop
+
         timers = self.timers
+        pop_timer = self.pop_timer
         timers_immediate = self.timers_immediate
 
-        get_reader = self.listeners[READ].get
-        get_writer = self.listeners[WRITE].get
+        poll = self.poll.poll
+        get_reader = self.get_reader
+        get_writer = self.get_writer
+        squelch_exception = self.squelch_exception
 
         while not self.stopping:
             if timers_immediate:
@@ -165,7 +185,7 @@ class Hub(HubSkeleton):
                     except:
                         pass
             try:
-                fd_events = self.poll.poll(0 if timers_immediate else -1)
+                fd_events = poll(0 if timers_immediate else -1)
             except (IOError, select.error) as e:
                 if get_errno(e) == errno.EINTR:
                     continue
@@ -180,7 +200,7 @@ class Hub(HubSkeleton):
                     except:
                         pass
                     try:
-                        t = timers.pop(f)
+                        t = pop_timer(f)
                         if not t.called:
                             t()  # exec timer
                     except SYSTEM_EXCEPTIONS:
@@ -201,11 +221,11 @@ class Hub(HubSkeleton):
                 except SYSTEM_EXCEPTIONS:
                     raise
                 except:
-                    self.squelch_exception(f, sys.exc_info())
+                    squelch_exception(f, sys.exc_info())
                     clear_sys_exc_info()
 
-            while self.closed:  # Ditch all closed fds first.
-                l = self.closed.pop(-1)
+            while closed:  # Ditch all closed fds first.
+                l = pop_closed(-1)
                 if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
                     l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
@@ -278,15 +298,15 @@ class Hub(HubSkeleton):
         try:
             if mask:
                 if new:
-                    self.poll.register(fileno, mask)
+                    self.poll_register(fileno, mask)
                     return
                 try:
-                    self.poll.modify(fileno, mask)
+                    self.poll_modify(fileno, mask)
                 except (IOError, OSError):
-                    self.poll.register(fileno, mask)
+                    self.poll_register(fileno, mask)
                 return
             try:
-                self.poll.unregister(fileno)
+                self.poll_unregister(fileno)
             except (KeyError, IOError, OSError):
                 # raised if we try to remove a fileno that was
                 # already removed/invalid
@@ -316,7 +336,7 @@ class Hub(HubSkeleton):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
         for l in [self.listeners_r.pop(fileno, None)] + [self.listeners_w.pop(fileno, None)] + \
-                self.secondaries[READ].pop(fileno, []) + self.secondaries[WRITE].pop(fileno, []):
+                self.pop_sec_reader(fileno, []) + self.pop_sec_writer(fileno, []):
             if l is None:
                 continue
             try:
@@ -325,7 +345,7 @@ class Hub(HubSkeleton):
                 self.squelch_exception(fileno, sys.exc_info())
                 clear_sys_exc_info()
         try:
-            self.poll.unregister(fileno)
+            self.poll_unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
             # raised if we try to remove a fileno that was
             # already removed/invalid
