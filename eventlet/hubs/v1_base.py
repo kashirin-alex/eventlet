@@ -194,6 +194,10 @@ class HubBase(HubSkeleton):
     def wait(self, seconds=None):
         raise NotImplementedError("Implement this in a subclass")
 
+    # Not Implemented
+    def timer_canceled(self, timer):
+        raise NotImplementedError("Implement this in a subclass")
+
     @staticmethod
     def default_sleep():
         return 60.0
