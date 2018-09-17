@@ -83,11 +83,12 @@ class Hub(HubSkeleton):
         #
 
     def timer_canceled(self, timer):
+        fileno = timer.fileno
         try:
-            os.close(timer.fileno)
+            os.close(fileno)
         except:
             pass
-        self.pop_timer(timer.fileno, None)
+        self.pop_timer(fileno, None)
         #
 
     def _obsolete(self, fileno):
