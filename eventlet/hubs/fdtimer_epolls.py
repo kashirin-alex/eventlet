@@ -2,6 +2,7 @@ import errno
 import os
 import sys
 import traceback
+
 from linuxfd import timerfd_c
 
 import eventlet
@@ -44,6 +45,7 @@ class Hub(HubSkeleton):
         self.listeners_r = self.listeners[READ]
         self.listeners_w = self.listeners[WRITE]
         self.timers = {}
+        self.timers_immediate = []
         self.secondaries = ({}, {})
         self.closed = []
 
@@ -53,12 +55,16 @@ class Hub(HubSkeleton):
         #
 
     def add_timer(self, timer):
+        seconds = timer.seconds
+        if seconds == 0:
+            self.timers_immediate.append(timer)
+            return timer
+        elif seconds < MIN_TIMER:  # zero and below 1 ns disarms a timer
+            seconds = MIN_TIMER
+
         fileno = int(timer_create(TIMER_CLOCK, TIMER_FLAGS))
         self.timers[fileno] = timer
         self.poll_register(fileno, TIMER_MASK)
-        seconds = timer.seconds
-        if seconds < MIN_TIMER:  # zero disarms a timer
-            seconds = MIN_TIMER
         timer_settime(fileno, 0, seconds, 0)
         timer.fileno = fileno
         return timer
@@ -141,6 +147,7 @@ class Hub(HubSkeleton):
 
         timers = self.timers
         pop_timer = self.timers.pop
+        timers_immediate = self.timers_immediate
 
         poll = self.poll.poll
         get_reader = self.listeners[READ].get
@@ -148,8 +155,21 @@ class Hub(HubSkeleton):
         squelch_exception = self.squelch_exception
 
         while not self.stopping:
+            if timers_immediate:
+                immediate = timers_immediate[:]  # copy current and exec without new to come
+                del timers_immediate[:]
+                for t in reversed(immediate):
+                    if t.called:
+                        continue
+                    # exec immediate timer
+                    try:
+                        t()
+                    except SYSTEM_EXCEPTIONS:
+                        raise
+                    except:
+                        pass
             try:
-                for f, ev in poll(-1):
+                for f, ev in poll(0 if timers_immediate else -1):
                     if f in timers:
                         # release resources first
                         try:
