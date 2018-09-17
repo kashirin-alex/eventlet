@@ -161,58 +161,58 @@ class Hub(HubSkeleton):
                 for t in reversed(immediate):
                     if t.called:
                         continue
-                    # exec immediate timer
                     try:
-                        t()
+                        t()  # exec immediate timer
                     except SYSTEM_EXCEPTIONS:
                         raise
                     except:
                         pass
             try:
-                for f, ev in poll(0 if timers_immediate else -1):
-                    if f in timers:
-                        # release resources first
-                        try:
-                            os.close(f)
-                        except:
-                            pass
-                        # exec timer
-                        try:
-                            t = pop_timer(f)
-                            if not t.called:
-                                t()
-                        except SYSTEM_EXCEPTIONS:
-                            raise
-                        except:
-                            pass
-                        continue
-
-                    try:
-                        if ev & EXC_MASK or ev & READ_MASK:
-                            l = get_reader(f)
-                            if l is not None:
-                                l.cb(f)
-                        if ev & EXC_MASK or ev & WRITE_MASK:
-                            l = get_writer(f)
-                            if l is not None:
-                                l.cb(f)
-                    except SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        squelch_exception(f, sys.exc_info())
-                        clear_sys_exc_info()
-
-                while closed:  # Ditch all closed fds first.
-                    l = pop_closed(-1)
-                    if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
-                        l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
-
+                fd_events = poll(0 if timers_immediate else -1)
             except (IOError, select.error) as e:
                 if get_errno(e) == errno.EINTR:
                     continue
                 raise
             except SYSTEM_EXCEPTIONS:
                 raise
+
+            for f, ev in fd_events:
+                if f in timers:
+                    # release resources first
+                    try:
+                        os.close(f)
+                    except:
+                        pass
+                    # exec timer
+                    try:
+                        t = pop_timer(f)
+                        if not t.called:
+                            t()
+                    except SYSTEM_EXCEPTIONS:
+                        raise
+                    except:
+                        pass
+                    continue
+
+                try:
+                    if ev & EXC_MASK or ev & READ_MASK:
+                        l = get_reader(f)
+                        if l is not None:
+                            l.cb(f)
+                    if ev & EXC_MASK or ev & WRITE_MASK:
+                        l = get_writer(f)
+                        if l is not None:
+                            l.cb(f)
+                except SYSTEM_EXCEPTIONS:
+                    raise
+                except:
+                    squelch_exception(f, sys.exc_info())
+                    clear_sys_exc_info()
+
+            while closed:  # Ditch all closed fds first.
+                l = pop_closed(-1)
+                if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
+                    l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
         # del self.timers[:]
         # del self.closed[:]
