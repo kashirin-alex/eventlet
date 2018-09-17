@@ -26,7 +26,7 @@ SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
 EXC_MASK = select.EPOLLERR | select.EPOLLHUP
 READ_MASK = select.EPOLLIN | select.EPOLLPRI
 WRITE_MASK = select.EPOLLOUT
-TIMER_MASK = select.EPOLLIN | select.EPOLLONESHOT  # no need to unregister a timer fd
+TIMER_MASK = select.EPOLLIN | select.EPOLLONESHOT
 
 TIMER_CLOCK = timerfd_c.CLOCK_MONOTONIC
 TIMER_FLAGS = timerfd_c.TFD_NONBLOCK
@@ -52,6 +52,7 @@ class Hub(HubSkeleton):
         self.poll = select.epoll()
         self.poll_register = self.poll.register
         self.poll_unregister = self.poll.unregister
+        self.poll_modify = self.poll.modify
         #
 
     def add_timer(self, timer):
@@ -63,10 +64,10 @@ class Hub(HubSkeleton):
             seconds = MIN_TIMER
 
         fileno = int(timer_create(TIMER_CLOCK, TIMER_FLAGS))
+        timer.fileno = fileno
         self.timers[fileno] = timer
         self.poll_register(fileno, TIMER_MASK)
         timer_settime(fileno, 0, seconds, 0)
-        timer.fileno = fileno
         return timer
         #
 
@@ -178,16 +179,14 @@ class Hub(HubSkeleton):
 
             for f, ev in fd_events:
                 if f in timers:
-                    # release resources first
                     try:
-                        os.close(f)
+                        os.close(f)  # release resources first
                     except:
                         pass
-                    # exec timer
                     try:
                         t = pop_timer(f)
                         if not t.called:
-                            t()
+                            t()  # exec timer
                     except SYSTEM_EXCEPTIONS:
                         raise
                     except:
@@ -241,34 +240,6 @@ class Hub(HubSkeleton):
         return len(self.listeners_r),  len(self.listeners_w)
         #
 
-    def register(self, fileno, new=False):
-        mask = 0
-        if fileno in self.listeners_r:
-            mask |= READ_MASK | EXC_MASK
-        if fileno in self.listeners_w:
-            mask |= WRITE_MASK | EXC_MASK
-        try:
-            if mask:
-                if new:
-                    self.poll.register(fileno, mask)
-                    return
-                try:
-                    self.poll.modify(fileno, mask)
-                except (IOError, OSError):
-                    self.poll.register(fileno, mask)
-                return
-            try:
-                self.poll.unregister(fileno)
-            except (KeyError, IOError, OSError):
-                # raised if we try to remove a fileno that was
-                # already removed/invalid
-                pass
-        except ValueError:
-            # fileno is bad, issue 74
-            self.remove_descriptor(fileno)
-            raise
-        #
-
     def add(self, evtype, fileno, cb, tb, mac):
         """ *args: evtype, fileno, cb, tb, mac """
         # evtype, fileno = args[0:2]
@@ -302,6 +273,34 @@ class Hub(HubSkeleton):
         return listener
         #
 
+    def register(self, fileno, new=False):
+        mask = 0
+        if fileno in self.listeners_r:
+            mask |= READ_MASK | EXC_MASK
+        if fileno in self.listeners_w:
+            mask |= WRITE_MASK | EXC_MASK
+        try:
+            if mask:
+                if new:
+                    self.poll_register(fileno, mask)
+                    return
+                try:
+                    self.poll_modify(fileno, mask)
+                except (IOError, OSError):
+                    self.poll_register(fileno, mask)
+                return
+            try:
+                self.poll_unregister(fileno)
+            except (KeyError, IOError, OSError):
+                # raised if we try to remove a fileno that was
+                # already removed/invalid
+                pass
+        except ValueError:
+            # fileno is bad, issue 74
+            self.remove_descriptor(fileno)
+            raise
+        #
+
     def remove(self, listener):
         fileno = listener.fileno
         if not listener.spent:
@@ -320,17 +319,17 @@ class Hub(HubSkeleton):
     def remove_descriptor(self, fileno):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
-        for evtype in EVENT_TYPES:
-            for l in [self.listeners[evtype].pop(fileno, None)]+self.secondaries[evtype].pop(fileno, []):
-                if l is None:
-                    continue
-                try:
-                    l.cb(fileno)
-                except:
-                    self.squelch_exception(fileno, sys.exc_info())
-                    clear_sys_exc_info()
+        for l in [self.listeners_r.pop(fileno, None)] + [self.listeners_w.pop(fileno, None)] + \
+                self.secondaries[READ].pop(fileno, []) + self.secondaries[WRITE].pop(fileno, []):
+            if l is None:
+                continue
+            try:
+                l.cb(fileno)
+            except:
+                self.squelch_exception(fileno, sys.exc_info())
+                clear_sys_exc_info()
         try:
-            self.poll.unregister(fileno)
+            self.poll_unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
             # raised if we try to remove a fileno that was
             # already removed/invalid
