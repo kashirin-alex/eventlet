@@ -196,7 +196,7 @@ class HubBase(HubSkeleton):
 
     # Not Implemented
     def timer_canceled(self, timer):
-        raise NotImplementedError("Implement this in a subclass")
+        pass
 
     @staticmethod
     def default_sleep():
