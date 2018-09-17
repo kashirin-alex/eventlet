@@ -145,17 +145,11 @@ class Hub(HubSkeleton):
         self.running = True
         self.stopping = False
 
-        closed = self.closed
-        pop_closed = self.closed.pop
-
         timers = self.timers
-        pop_timer = self.timers.pop
         timers_immediate = self.timers_immediate
 
-        poll = self.poll.poll
         get_reader = self.listeners[READ].get
         get_writer = self.listeners[WRITE].get
-        squelch_exception = self.squelch_exception
 
         while not self.stopping:
             if timers_immediate:
@@ -171,7 +165,7 @@ class Hub(HubSkeleton):
                     except:
                         pass
             try:
-                fd_events = poll(0 if timers_immediate else -1)
+                fd_events = self.poll.poll(0 if timers_immediate else -1)
             except (IOError, select.error) as e:
                 if get_errno(e) == errno.EINTR:
                     continue
@@ -186,7 +180,7 @@ class Hub(HubSkeleton):
                     except:
                         pass
                     try:
-                        t = pop_timer(f)
+                        t = timers.pop(f)
                         if not t.called:
                             t()  # exec timer
                     except SYSTEM_EXCEPTIONS:
@@ -207,11 +201,11 @@ class Hub(HubSkeleton):
                 except SYSTEM_EXCEPTIONS:
                     raise
                 except:
-                    squelch_exception(f, sys.exc_info())
+                    self.squelch_exception(f, sys.exc_info())
                     clear_sys_exc_info()
 
-            while closed:  # Ditch all closed fds first.
-                l = pop_closed(-1)
+            while self.closed:  # Ditch all closed fds first.
+                l = self.closed.pop(-1)
                 if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
                     l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
