@@ -58,7 +58,7 @@ class Hub(HubSkeleton):
         self.add_immediate_timer = self.timers_immediate.append
 
         self.closed = []
-        self.add_closed = self.timers_immediate.append
+        self.add_closed = self.closed.append
 
         self.poll = select.epoll()
         self.poll_register = self.poll.register
