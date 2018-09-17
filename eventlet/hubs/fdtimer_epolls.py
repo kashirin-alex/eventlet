@@ -50,9 +50,6 @@ class Hub(HubSkeleton):
         self.closed = []
 
         self.poll = select.epoll()
-        self.poll_register = self.poll.register
-        self.poll_unregister = self.poll.unregister
-        self.poll_modify = self.poll.modify
         #
 
     def add_timer(self, timer):
@@ -66,7 +63,7 @@ class Hub(HubSkeleton):
         fileno = int(timer_create(TIMER_CLOCK, TIMER_FLAGS))
         timer.fileno = fileno
         self.timers[fileno] = timer
-        self.poll_register(fileno, TIMER_MASK)
+        self.poll.register(fileno, TIMER_MASK)
         timer_settime(fileno, 0, seconds, 0)
         return timer
         #
@@ -85,20 +82,25 @@ class Hub(HubSkeleton):
             their greenlets queued up to send.
         """
         found = False
-        for evtype in EVENT_TYPES:
-            for listener in self.secondaries[evtype].pop(fileno, []):
-                found = True
-                self.closed.append(listener)
-                listener.defang()
+        for listener in self.secondaries[READ].pop(fileno, [])+self.secondaries[WRITE].pop(fileno, []):
+            found = True
+            self.closed.append(listener)
+            listener.defang()
 
-            # For the primary listeners, we actually need to call remove,
-            # which may modify the underlying OS polling objects.
-            listener = self.listeners[evtype].get(fileno)
-            if listener:
-                found = True
-                self.closed.append(listener)
-                self.remove(listener)
-                listener.defang()
+        # For the primary listeners, we actually need to call remove,
+        # which may modify the underlying OS polling objects.
+        listener = self.listeners[READ].get(fileno)
+        if listener:
+            found = True
+            self.closed.append(listener)
+            self.remove(listener)
+            listener.defang()
+        listener = self.listeners[WRITE].get(fileno)
+        if listener:
+            found = True
+            self.closed.append(listener)
+            self.remove(listener)
+            listener.defang()
         return found
         #
 
@@ -282,15 +284,15 @@ class Hub(HubSkeleton):
         try:
             if mask:
                 if new:
-                    self.poll_register(fileno, mask)
+                    self.poll.register(fileno, mask)
                     return
                 try:
-                    self.poll_modify(fileno, mask)
+                    self.poll.modify(fileno, mask)
                 except (IOError, OSError):
-                    self.poll_register(fileno, mask)
+                    self.poll.register(fileno, mask)
                 return
             try:
-                self.poll_unregister(fileno)
+                self.poll.unregister(fileno)
             except (KeyError, IOError, OSError):
                 # raised if we try to remove a fileno that was
                 # already removed/invalid
@@ -329,7 +331,7 @@ class Hub(HubSkeleton):
                 self.squelch_exception(fileno, sys.exc_info())
                 clear_sys_exc_info()
         try:
-            self.poll_unregister(fileno)
+            self.poll.unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
             # raised if we try to remove a fileno that was
             # already removed/invalid
