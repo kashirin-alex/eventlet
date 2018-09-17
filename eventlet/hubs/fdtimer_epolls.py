@@ -150,24 +150,24 @@ class Hub(HubSkeleton):
         while not self.stopping:
             try:
                 for f, ev in poll(-1):
-                    try:
-                        if f in timers:
-                            # release resources first
-                            try:
-                                os.close(f)
-                            except:
-                                pass
-                            # exec timer
-                            try:
-                                t = pop_timer(f)
-                                if not t.called:
-                                    t()
-                            except SYSTEM_EXCEPTIONS:
-                                raise
-                            except:
-                                pass
-                            continue
+                    if f in timers:
+                        # release resources first
+                        try:
+                            os.close(f)
+                        except:
+                            pass
+                        # exec timer
+                        try:
+                            t = pop_timer(f)
+                            if not t.called:
+                                t()
+                        except SYSTEM_EXCEPTIONS:
+                            raise
+                        except:
+                            pass
+                        continue
 
+                    try:
                         if ev & EXC_MASK or ev & READ_MASK:
                             l = get_reader(f)
                             if l is not None:
@@ -194,11 +194,15 @@ class Hub(HubSkeleton):
             except SYSTEM_EXCEPTIONS:
                 raise
 
-        del self.timers[:]
-        del self.closed[:]
+        # del self.timers[:]
+        # del self.closed[:]
+        # for ev in EVENT_TYPES:
+        #    self.listeners[ev].clear()
+        #    self.secondaries[ev].clear()
+        # self.poll.close()
 
-        self.running = False
         self.stopping = False
+        self.running = False
         #
 
     def get_readers(self):
