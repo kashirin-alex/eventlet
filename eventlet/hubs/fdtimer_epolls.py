@@ -85,6 +85,7 @@ class Hub(HubSkeleton):
     def timer_canceled(self, timer):
         fileno = timer.fileno
         try:
+            self.poll_unregister(fileno)
             os.close(fileno)
         except:
             pass
@@ -168,6 +169,7 @@ class Hub(HubSkeleton):
         timers_immediate = self.timers_immediate
 
         poll = self.poll.poll
+        poll_unregister = self.poll_unregister
         get_reader = self.get_reader
         get_writer = self.get_writer
         squelch_exception = self.squelch_exception
@@ -197,6 +199,7 @@ class Hub(HubSkeleton):
             for f, ev in fd_events:
                 if f in timers:
                     try:
+                        poll_unregister(f)
                         os.close(f)  # release resources first
                     except:
                         pass

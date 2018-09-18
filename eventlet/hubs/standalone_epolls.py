@@ -55,7 +55,7 @@ class Hub(HubSkeleton):
     # Not Implemented
     def timer_canceled(self, timer):
         pass
-    
+
     def _obsolete(self, fileno):
         """ We've received an indication that 'fileno' has been obsoleted.
             Any current listeners must be defanged, and notifications to
