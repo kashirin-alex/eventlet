@@ -85,6 +85,7 @@ class Hub(HubSkeleton):
     def timer_canceled(self, timer):
         fileno = timer.fileno
         try:
+            timer_settime(fileno, 0, 0, 0)
             self.poll_unregister(fileno)
             os.close(fileno)
         except:
@@ -235,6 +236,7 @@ class Hub(HubSkeleton):
         finally:
             while timers:
                 f, t = timers.popitem()
+                timer_settime(f, 0, 0, 0)
                 poll_unregister(f)
                 os.close(f)
 
