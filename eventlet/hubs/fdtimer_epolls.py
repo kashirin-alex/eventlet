@@ -77,8 +77,12 @@ class Hub(HubSkeleton):
         fileno = int(timer_create(TIMER_CLOCK, TIMER_FLAGS))
         timer.fileno = fileno
         self.timers[fileno] = timer
-        self.poll_register(fileno, TIMER_MASK)
-        timer_settime(fileno, 0, seconds, 0)
+        try:
+            self.poll_register(fileno, TIMER_MASK)
+        except:
+            # delayed in registering followed expired and closed timer fd
+            return self.add_timer(timer)
+
         return timer
         #
 
