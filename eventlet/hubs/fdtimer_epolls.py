@@ -81,6 +81,7 @@ class Hub(HubSkeleton):
             self.poll_register(fileno, TIMER_MASK)
         except:
             # delayed in registering followed expired and closed timer fd
+            timer.seconds = 0  # pass-through
             return self.add_timer(timer)
 
         return timer
