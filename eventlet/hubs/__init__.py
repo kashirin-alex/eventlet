@@ -46,7 +46,7 @@ def get_default_hub(mod=None):
         selected_mod = mod
     else:
         for m in (mod,) + hub_name_priority:
-            if m is None:
+            if not m:
                 continue
             try:
                 # a full path module name
