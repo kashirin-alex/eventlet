@@ -10,6 +10,7 @@ select = patcher.original('select')
 def is_available():
     return hasattr(select, 'poll')
 
+CLOSED_MASK = select.POLLNVAL | 0x2000
 EXC_MASK = select.POLLERR | select.POLLHUP
 READ_MASK = select.POLLIN | select.POLLPRI
 WRITE_MASK = select.POLLOUT
@@ -36,9 +37,9 @@ class Hub(BaseHub):
     def register(self, fileno, new=False):
         mask = 0
         if self.has_listener_reader(fileno):
-            mask |= READ_MASK | EXC_MASK
+            mask |= READ_MASK | EXC_MASK | CLOSED_MASK
         if self.has_listener_writer(fileno):
-            mask |= WRITE_MASK | EXC_MASK
+            mask |= WRITE_MASK | EXC_MASK | CLOSED_MASK
         try:
             if mask:
                 if new:
@@ -89,9 +90,10 @@ class Hub(BaseHub):
             return
 
         for f, ev in presult:
+            if ev & CLOSED_MASK:
+                self.remove_descriptor(f)
+                continue
             if ev & EXC_MASK or ev & WRITE_MASK:
                 self.add_listener_events((self.WRITE, f))
             if ev & EXC_MASK or ev & READ_MASK:
                 self.add_listener_events((self.READ, f))
-            if ev & POLLNVAL:
-                self.remove_descriptor(f)

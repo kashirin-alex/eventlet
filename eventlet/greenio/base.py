@@ -381,8 +381,8 @@ class GreenSocket(object):
                 return send_method(data, *args)
             except socket.error as e:
                 eno = get_errno(e)
-                if eno == errno.ENOTCONN or eno not in SOCKET_BLOCKING:
-                    raise
+                if eno == errno.ENOTCONN or eno in SOCKET_CLOSED or eno not in SOCKET_BLOCKING:
+                    raise socket.error(eno)
             try:
                 self._trampoline(self.fd, write=True, timeout=self.gettimeout(),
                                  timeout_exc=socket_timeout('timed out'))

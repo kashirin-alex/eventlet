@@ -192,7 +192,7 @@ class _SocketDuckForFd(object):
                 if data:
                     self._trampoline(self, write=True)
             except OSError as e:
-                if get_errno(e) != errno. EAGAIN:
+                if get_errno(e) != errno.EAGAIN:
                     raise IOError(*e.args)
 
     def __del__(self):
