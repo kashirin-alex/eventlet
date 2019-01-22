@@ -23,11 +23,12 @@ MIN_TIMER = 0.000000001
 
 SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
 
-CLOSED_MASK = select.POLLNVAL | 0x2000  # EPOLLRDHUP
+EPOLLRDHUP = 0x2000
+CLOSED_MASK = select.POLLNVAL
 EXC_MASK = select.EPOLLERR | select.EPOLLHUP
 
 READ_MASK = select.EPOLLIN | select.EPOLLPRI | EXC_MASK
-WRITE_MASK = select.EPOLLOUT | EXC_MASK
+WRITE_MASK = select.EPOLLOUT | EXC_MASK | EPOLLRDHUP
 TIMER_MASK = select.EPOLLIN | select.EPOLLONESHOT
 
 TIMER_CLOCK = timerfd_c.CLOCK_MONOTONIC
@@ -223,9 +224,6 @@ class Hub(HubSkeleton):
                         continue
 
                     try:
-                        if ev & CLOSED_MASK:
-                            self._obsolete(f)
-                            continue
                         if ev & READ_MASK:
                             l = get_reader(f)
                             if l is not None:
@@ -234,6 +232,10 @@ class Hub(HubSkeleton):
                             l = get_writer(f)
                             if l is not None:
                                 l.cb(f)
+                            if ev & EPOLLRDHUP:
+                                self._obsolete(f)
+                        if ev & CLOSED_MASK:
+                            self.remove_descriptor(f)
 
                     except SYSTEM_EXCEPTIONS:
                         raise
@@ -314,9 +316,9 @@ class Hub(HubSkeleton):
     def register(self, fileno, new=False):
         mask = 0
         if fileno in self.listeners_r:
-            mask |= READ_MASK | CLOSED_MASK
+            mask |= READ_MASK
         if fileno in self.listeners_w:
-            mask |= WRITE_MASK | CLOSED_MASK
+            mask |= WRITE_MASK
         try:
             if mask:
                 if new:
