@@ -224,7 +224,7 @@ class Hub(HubSkeleton):
 
                     try:
                         if ev & CLOSED_MASK:
-                            self.remove_descriptor(f)
+                            self._obsolete(f)
                             continue
                         if ev & READ_MASK:
                             l = get_reader(f)
@@ -361,6 +361,7 @@ class Hub(HubSkeleton):
                 self.pop_sec_reader(fileno, []) + self.pop_sec_writer(fileno, []):
             if l is None:
                 continue
+
             try:
                 l.cb(fileno)
             except:
