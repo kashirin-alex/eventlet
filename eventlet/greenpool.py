@@ -38,6 +38,8 @@ class GreenPool(object):
         then, the return value of free() will be negative.
         """
         self.sem.counter += new_size - self.size
+        if self.sem.counter < 1 and self.running() == 0:  # avoid dead lock
+            self.sem.counter = new_size
         self.size = new_size
 
     def running(self):
