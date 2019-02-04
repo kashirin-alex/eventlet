@@ -187,13 +187,9 @@ class HostsResolver(object):
         """
         try:
             with open(self.fname, 'rb') as fp:
-                fdata = fp.read()
+                return six.moves.filter(None, self.LINES_RE.findall(fp.read().decode(errors='ignore')))
         except (IOError, OSError):
             return []
-
-        udata = fdata.decode(errors='ignore')
-
-        return six.moves.filter(None, self.LINES_RE.findall(udata))
 
     def _load(self):
         """Load hosts file
@@ -308,6 +304,7 @@ class ResolverProxy(object):
            and Windows, on Windows it will result in the configuration
            being read from the Windows registry.
         """
+        self._resolver = None
         self._hosts = hosts_resolver
         self._filename = filename
         self.clear()
@@ -359,7 +356,7 @@ class ResolverProxy(object):
                     raise result[1]
             raise dns.resolver.NXDOMAIN(qnames=(qname,))
 
-        if (self._hosts and (rdclass == dns.rdataclass.IN) and (rdtype in _hosts_rdtypes)):
+        if self._hosts and rdclass == dns.rdataclass.IN and rdtype in _hosts_rdtypes:
             if step(self._hosts.query, qname, rdtype, raise_on_no_answer=False):
                 if (result[0] is not None) or (result[1] is not None) or (not use_network):
                     return end()
@@ -636,7 +633,7 @@ def _net_read(sock, count, expiration):
             continue
         if n == b'':
             raise EOFError
-        count = count - len(n)
+        count -= len(n)
         s += n
     return s
 
@@ -658,8 +655,8 @@ def _net_write(sock, data, expiration):
                 raise dns.exception.Timeout
 
 
-def udp(q, where, timeout=DNS_QUERY_TIMEOUT, port=53,
-        af=None, source=None, source_port=0, ignore_unexpected=False):
+def query_udp(q, where, timeout=DNS_QUERY_TIMEOUT, port=53,
+              af=None, source=None, source_port=0, ignore_unexpected=False):
     """coro friendly replacement for dns.query.udp
     Return the response obtained after sending a query via UDP.
 
@@ -760,8 +757,8 @@ def udp(q, where, timeout=DNS_QUERY_TIMEOUT, port=53,
     return r
 
 
-def tcp(q, where, timeout=DNS_QUERY_TIMEOUT, port=53,
-        af=None, source=None, source_port=0):
+def query_tcp(q, where, timeout=DNS_QUERY_TIMEOUT, port=53,
+              af=None, source=None, source_port=0):
     """coro friendly replacement for dns.query.tcp
     Return the response obtained after sending a query via TCP.
 
@@ -837,5 +834,5 @@ def reset():
     resolver.clear()
 
 # Install our coro-friendly replacements for the tcp and udp query methods.
-dns.query.tcp = tcp
-dns.query.udp = udp
+dns.query.tcp = query_tcp
+dns.query.udp = query_udp

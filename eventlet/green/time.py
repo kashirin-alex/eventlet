@@ -4,3 +4,4 @@ __patched__ = ['sleep']
 slurp_properties(__time, globals(), ignore=__patched__, srckeys=dir(__time))
 from eventlet.greenthread import sleep
 sleep  # silence pyflakes
+time = __time.time
