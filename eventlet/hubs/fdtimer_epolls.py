@@ -159,6 +159,83 @@ class Hub(HubSkeleton):
             sys.stderr.flush()
         #
 
+    def execute_pooling(self):
+
+        poll_unregister = self.poll_unregister
+
+        timers = self.timers
+        pop_timer = self.pop_timer
+        timers_immediate = self.timers_immediate
+
+        get_reader = self.get_reader
+        get_writer = self.get_writer
+
+        if timers_immediate:
+            immediate = timers_immediate[:]  # copy current and exec without new to come
+            del timers_immediate[:]
+            for t in immediate:
+                if t.called:
+                    continue
+                try:
+                    t()  # exec immediate timer
+                except SYSTEM_EXCEPTIONS:
+                    raise
+                except:
+                    pass
+        try:
+            fd_events = self.poll.poll(0 if timers_immediate else -1)
+        except (IOError, select.error) as e:
+            if get_errno(e) == errno.EINTR:
+                return
+            raise
+        except SYSTEM_EXCEPTIONS:
+            raise
+
+        for f, ev in fd_events:
+            if f in timers:
+                try:
+                    poll_unregister(f)
+                    os.close(f)  # release resources first
+                except:
+                    pass
+                try:
+                    t = pop_timer(f)
+                    if not t.called:
+                        t()  # exec timer
+                except SYSTEM_EXCEPTIONS:
+                    raise
+                except:
+                    pass
+                continue
+
+            try:
+                if ev & READ_MASK:
+                    l = get_reader(f)
+                    if l is not None:
+                        l.cb(f)
+                if ev & WRITE_MASK:
+                    l = get_writer(f)
+                    if l is not None:
+                        l.cb(f)
+                    if ev & EPOLLRDHUP:
+                        self._obsolete(f)
+                if ev & CLOSED_MASK:
+                    self.remove_descriptor(f)
+
+            except SYSTEM_EXCEPTIONS:
+                raise
+            except:
+                self.squelch_exception(f, sys.exc_info())
+                clear_sys_exc_info()
+
+        closed = self.closed
+        pop_closed = self.closed.pop
+        while closed:  # Ditch all closed fds first.
+            l = pop_closed(-1)
+            if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
+                l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
+        #
+
     def run(self, *a, **kw):
         """Run the runloop until abort is called.
         """
@@ -171,87 +248,14 @@ class Hub(HubSkeleton):
         self.running = True
         self.stopping = False
 
-        closed = self.closed
-        pop_closed = self.closed.pop
-
-        timers = self.timers
-        pop_timer = self.pop_timer
-        timers_immediate = self.timers_immediate
-
-        poll = self.poll.poll
-        poll_unregister = self.poll_unregister
-        get_reader = self.get_reader
-        get_writer = self.get_writer
-        squelch_exception = self.squelch_exception
         try:
             while not self.stopping:
-                if timers_immediate:
-                    immediate = timers_immediate[:]  # copy current and exec without new to come
-                    del timers_immediate[:]
-                    for t in immediate:
-                        if t.called:
-                            continue
-                        try:
-                            t()  # exec immediate timer
-                        except SYSTEM_EXCEPTIONS:
-                            raise
-                        except:
-                            pass
-                try:
-                    fd_events = poll(0 if timers_immediate else -1)
-                except (IOError, select.error) as e:
-                    if get_errno(e) == errno.EINTR:
-                        continue
-                    raise
-                except SYSTEM_EXCEPTIONS:
-                    raise
-
-                for f, ev in fd_events:
-                    if f in timers:
-                        try:
-                            poll_unregister(f)
-                            os.close(f)  # release resources first
-                        except:
-                            pass
-                        try:
-                            t = pop_timer(f)
-                            if not t.called:
-                                t()  # exec timer
-                        except SYSTEM_EXCEPTIONS:
-                            raise
-                        except:
-                            pass
-                        continue
-
-                    try:
-                        if ev & READ_MASK:
-                            l = get_reader(f)
-                            if l is not None:
-                                l.cb(f)
-                        if ev & WRITE_MASK:
-                            l = get_writer(f)
-                            if l is not None:
-                                l.cb(f)
-                            if ev & EPOLLRDHUP:
-                                self._obsolete(f)
-                        if ev & CLOSED_MASK:
-                            self.remove_descriptor(f)
-
-                    except SYSTEM_EXCEPTIONS:
-                        raise
-                    except:
-                        squelch_exception(f, sys.exc_info())
-                        clear_sys_exc_info()
-
-                while closed:  # Ditch all closed fds first.
-                    l = pop_closed(-1)
-                    if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
-                        l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
+                self.execute_pooling()
         finally:
-            while timers:
-                f, t = timers.popitem()
+            while self.timers:
+                f, t = self.timers.popitem()
                 timer_settime(f, 0, 0, 0)
-                poll_unregister(f)
+                self.poll_unregister(f)
                 os.close(f)
 
             self.timers.clear()
