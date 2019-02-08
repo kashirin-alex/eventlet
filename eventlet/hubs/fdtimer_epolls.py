@@ -159,7 +159,7 @@ class Hub(HubSkeleton):
             sys.stderr.flush()
         #
 
-    def execute_pooling(self):
+    def execute_polling(self):
 
         poll_unregister = self.poll_unregister
 
@@ -250,7 +250,7 @@ class Hub(HubSkeleton):
 
         try:
             while not self.stopping:
-                self.execute_pooling()
+                self.execute_polling()
         finally:
             while self.timers:
                 f, t = self.timers.popitem()
