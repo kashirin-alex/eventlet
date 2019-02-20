@@ -220,15 +220,14 @@ class Hub(HubSkeleton):
                         self._obsolete(f)
                 if ev & CLOSED_MASK:
                     self.remove_descriptor(f)
-
+            except SYSTEM_EXCEPTIONS:
+                continue
             except:
                 self.squelch_exception(f, sys.exc_info())
                 clear_sys_exc_info()
 
-        closed = self.closed
-        pop_closed = self.closed.pop
-        while closed:  # Ditch all closed fds first.
-            l = pop_closed(-1)
+        while self.closed:  # Ditch all closed fds first.
+            l = self.closed.pop(-1)
             if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
                 l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
         return True
@@ -266,6 +265,7 @@ class Hub(HubSkeleton):
                 self.listeners[ev].clear()
                 self.secondaries[ev].clear()
             self.poll.close()
+            self.poll_backing.close()
             self.stopping = False
             self.running = False
         #
