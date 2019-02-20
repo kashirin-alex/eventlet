@@ -178,8 +178,7 @@ class Hub(HubSkeleton):
                     pass
         try:
             fd_events = self.poll.poll(0 if timers_immediate else -1)
-        except Exception as e:
-            print (e, get_errno(e))
+        except ValueError:
             if not self.stopping:
                 try:
                     self.poll.close()
@@ -189,6 +188,9 @@ class Hub(HubSkeleton):
                 self.poll_backing = select.epoll.fromfd(os.dup(self.poll.fileno()))
                 return True
             return False
+        except Exception as e:
+            print (e, get_errno(e))
+            return True
 
         for f, ev in fd_events:
             if f in timers:
