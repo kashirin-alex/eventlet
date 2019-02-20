@@ -62,11 +62,7 @@ class Hub(HubSkeleton):
 
         self.closed = []
         self.add_closed = self.closed.append
-        self.poll = self.poll_backing = None
-        self.set_poll()
-        #
 
-    def set_poll(self):
         self.poll = select.epoll()
         self.poll_backing = select.epoll.fromfd(self.poll.fileno())
         #
@@ -185,7 +181,8 @@ class Hub(HubSkeleton):
         except Exception as e:
             print (e, get_errno(e))
             if not self.stopping:
-                self.set_poll()
+                self.poll = self.poll_backing
+                self.poll_backing = select.epoll.fromfd(self.poll.fileno())
                 return True
             return False
 
