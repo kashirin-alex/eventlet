@@ -64,6 +64,7 @@ class Hub(HubSkeleton):
         self.add_closed = self.closed.append
 
         self.poll = select.epoll()
+        self.poll_backing = select.epoll.fromfd(self.poll.fileno())
         self.poll_register = self.poll.register
         self.poll_unregister = self.poll.unregister
         self.poll_modify = self.poll.modify
@@ -178,18 +179,19 @@ class Hub(HubSkeleton):
                     continue
                 try:
                     t()  # exec immediate timer
-                except SYSTEM_EXCEPTIONS:
-                    raise
                 except:
                     pass
         try:
             fd_events = self.poll.poll(0 if timers_immediate else -1)
-        except (IOError, select.error) as e:
-            if get_errno(e) == errno.EINTR:
-                return
-            raise
-        except SYSTEM_EXCEPTIONS:
-            raise
+        except Exception as e:
+            print (e, get_errno(e))
+            if not self.stopping:
+                self.poll = self.poll_backing
+                self.poll_register = self.poll.register
+                self.poll_unregister = self.poll.unregister
+                self.poll_modify = self.poll.modify
+                return True
+            return False
 
         for f, ev in fd_events:
             if f in timers:
@@ -202,8 +204,6 @@ class Hub(HubSkeleton):
                     t = pop_timer(f)
                     if not t.called:
                         t()  # exec timer
-                except SYSTEM_EXCEPTIONS:
-                    raise
                 except:
                     pass
                 continue
@@ -223,7 +223,7 @@ class Hub(HubSkeleton):
                     self.remove_descriptor(f)
 
             except SYSTEM_EXCEPTIONS:
-                raise
+                pass
             except:
                 self.squelch_exception(f, sys.exc_info())
                 clear_sys_exc_info()
@@ -234,6 +234,7 @@ class Hub(HubSkeleton):
             l = pop_closed(-1)
             if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
                 l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
+        return True
         #
 
     def run(self, *a, **kw):
@@ -249,14 +250,18 @@ class Hub(HubSkeleton):
         self.stopping = False
 
         try:
-            while not self.stopping:
-                self.execute_polling()
+            while True:
+                if not self.execute_polling():
+                    break
         finally:
             while self.timers:
-                f, t = self.timers.popitem()
-                timer_settime(f, 0, 0, 0)
-                self.poll_unregister(f)
-                os.close(f)
+                try:
+                    f, t = self.timers.popitem()
+                    timer_settime(f, 0, 0, 0)
+                    self.poll_unregister(f)
+                    os.close(f)
+                except:
+                    pass
 
             self.timers.clear()
             del self.closed[:]
