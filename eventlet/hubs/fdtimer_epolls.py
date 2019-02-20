@@ -64,7 +64,7 @@ class Hub(HubSkeleton):
         self.add_closed = self.closed.append
 
         self.poll = select.epoll()
-        self.poll_backing = select.epoll.fromfd(self.poll.fileno())
+        self.poll_backing = select.epoll.fromfd(os.dup(self.poll.fileno()))
         #
 
     def add_timer(self, timer):
@@ -181,8 +181,12 @@ class Hub(HubSkeleton):
         except Exception as e:
             print (e, get_errno(e))
             if not self.stopping:
+                try:
+                    self.poll.close()
+                except:
+                    pass
                 self.poll = self.poll_backing
-                self.poll_backing = select.epoll.fromfd(self.poll.fileno())
+                self.poll_backing = select.epoll.fromfd(os.dup(self.poll.fileno()))
                 return True
             return False
 
