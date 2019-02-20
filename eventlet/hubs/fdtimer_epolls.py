@@ -62,12 +62,13 @@ class Hub(HubSkeleton):
 
         self.closed = []
         self.add_closed = self.closed.append
+        self.poll = self.poll_backing = None
+        self.set_poll()
+        #
 
+    def set_poll(self):
         self.poll = select.epoll()
         self.poll_backing = select.epoll.fromfd(self.poll.fileno())
-        self.poll_register = self.poll.register
-        self.poll_unregister = self.poll.unregister
-        self.poll_modify = self.poll.modify
         #
 
     def add_timer(self, timer):
@@ -82,7 +83,7 @@ class Hub(HubSkeleton):
         timer.fileno = fileno
         self.timers[fileno] = timer
         try:
-            self.poll_register(fileno, TIMER_MASK)
+            self.poll.register(fileno, TIMER_MASK)
         except:
             # delayed in registering followed expired and closed timer fd
             self.timers.pop(fileno, None)
@@ -96,7 +97,7 @@ class Hub(HubSkeleton):
         fileno = timer.fileno
         try:
             timer_settime(fileno, 0, 0, 0)
-            self.poll_unregister(fileno)
+            self.poll.unregister(fileno)
             os.close(fileno)
         except:
             pass
@@ -162,8 +163,6 @@ class Hub(HubSkeleton):
 
     def execute_polling(self):
 
-        poll_unregister = self.poll_unregister
-
         timers = self.timers
         pop_timer = self.pop_timer
         timers_immediate = self.timers_immediate
@@ -186,17 +185,14 @@ class Hub(HubSkeleton):
         except Exception as e:
             print (e, get_errno(e))
             if not self.stopping:
-                self.poll = self.poll_backing
-                self.poll_register = self.poll.register
-                self.poll_unregister = self.poll.unregister
-                self.poll_modify = self.poll.modify
+                self.set_poll()
                 return True
             return False
 
         for f, ev in fd_events:
             if f in timers:
                 try:
-                    poll_unregister(f)
+                    self.poll.unregister(f)
                     os.close(f)  # release resources first
                 except:
                     pass
@@ -222,8 +218,6 @@ class Hub(HubSkeleton):
                 if ev & CLOSED_MASK:
                     self.remove_descriptor(f)
 
-            except SYSTEM_EXCEPTIONS:
-                pass
             except:
                 self.squelch_exception(f, sys.exc_info())
                 clear_sys_exc_info()
@@ -258,7 +252,7 @@ class Hub(HubSkeleton):
                 try:
                     f, t = self.timers.popitem()
                     timer_settime(f, 0, 0, 0)
-                    self.poll_unregister(f)
+                    self.poll.unregister(f)
                     os.close(f)
                 except:
                     pass
@@ -331,15 +325,15 @@ class Hub(HubSkeleton):
         try:
             if mask:
                 if new:
-                    self.poll_register(fileno, mask)
+                    self.poll.register(fileno, mask)
                     return
                 try:
-                    self.poll_modify(fileno, mask)
+                    self.poll.modify(fileno, mask)
                 except (IOError, OSError):
-                    self.poll_register(fileno, mask)
+                    self.poll.register(fileno, mask)
                 return
             try:
-                self.poll_unregister(fileno)
+                self.poll.unregister(fileno)
             except (KeyError, IOError, OSError):
                 # raised if we try to remove a fileno that was
                 # already removed/invalid
@@ -379,7 +373,7 @@ class Hub(HubSkeleton):
                 self.squelch_exception(fileno, sys.exc_info())
                 clear_sys_exc_info()
         try:
-            self.poll_unregister(fileno)
+            self.poll.unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
             # raised if we try to remove a fileno that was
             # already removed/invalid
