@@ -33,8 +33,8 @@ TIMER_MASK = select.EPOLLIN | select.EPOLLONESHOT
 
 TIMER_CLOCK = timerfd_c.CLOCK_MONOTONIC
 TIMER_FLAGS = timerfd_c.TFD_NONBLOCK
-timer_create = timerfd_c.timerfd_create
-timer_settime = timerfd_c.timerfd_settime
+timerfd_create = timerfd_c.timerfd_create
+timerfd_settime = timerfd_c.timerfd_settime
 
 
 class Hub(HubSkeleton):
@@ -75,7 +75,7 @@ class Hub(HubSkeleton):
         elif seconds < MIN_TIMER:  # zero and below 1 ns disarms a timer
             seconds = MIN_TIMER
 
-        fileno = int(timer_create(TIMER_CLOCK, TIMER_FLAGS))
+        fileno = int(timerfd_create(TIMER_CLOCK, TIMER_FLAGS))
         timer.fileno = fileno
         self.timers[fileno] = timer
         try:
@@ -85,14 +85,14 @@ class Hub(HubSkeleton):
             self.timers.pop(fileno, None)
             timer.seconds = 0  # pass-through
             return self.add_timer(timer)
-        timer_settime(fileno, 0, seconds, 0)
+        timerfd_settime(fileno, 0, seconds, 0)
         return timer
         #
 
     def timer_canceled(self, timer):
         fileno = timer.fileno
         try:
-            timer_settime(fileno, 0, 0, 0)
+            timerfd_settime(fileno, 0, 0, 0)
             self.poll.unregister(fileno)
             os.close(fileno)
         except:
@@ -253,7 +253,7 @@ class Hub(HubSkeleton):
             while self.timers:
                 try:
                     f, t = self.timers.popitem()
-                    timer_settime(f, 0, 0, 0)
+                    timerfd_settime(f, 0, 0, 0)
                     self.poll.unregister(f)
                     os.close(f)
                 except:
