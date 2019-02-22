@@ -20,6 +20,8 @@ if os.environ.get('EVENTLET_IMPORT_VERSION_ONLY') != '1':
     from eventlet import support
     from eventlet import timeout
     from eventlet import timer
+    from eventlet import eventfd
+
     # Force monotonic library search as early as possible.
     # Helpful when CPython < 3.5 on Linux blocked in `os.waitpid(-1)` before first use of hub.
     # Example: gunicorn
@@ -55,6 +57,8 @@ if os.environ.get('EVENTLET_IMPORT_VERSION_ONLY') != '1':
 
     LocalTimer = timer.LocalTimer
     Timer = timer.Timer
+
+    EventFd = eventfd.EventFd
 
     Timeout = timeout.Timeout
     with_timeout = timeout.with_timeout

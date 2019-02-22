@@ -1,9 +1,10 @@
 import errno
 import os
 import sys
+import io
 import traceback
 
-from linuxfd import timerfd_c
+from linuxfd import timerfd_c, eventfd_c
 
 import eventlet
 from eventlet.support import clear_sys_exc_info, get_errno
@@ -36,6 +37,11 @@ TIMER_FLAGS = timerfd_c.TFD_NONBLOCK
 timerfd_create = timerfd_c.timerfd_create
 timerfd_settime = timerfd_c.timerfd_settime
 
+eventfd_create = eventfd_c.eventfd
+eventfd_read = eventfd_c.eventfd_read
+EV_FLAGS = eventfd_c.EFD_NONBLOCK | eventfd_c.EFD_SEMAPHORE
+EV_READ_MASK = select.EPOLLIN | select.EPOLLPRI
+
 
 class Hub(HubSkeleton):
     WRITE = WRITE
@@ -54,6 +60,7 @@ class Hub(HubSkeleton):
         self.pop_sec_reader = self.secondaries[READ].pop
         self.pop_sec_writer = self.secondaries[WRITE].pop
 
+        self.fd_events = {}
         self.timers = {}
         self.pop_timer = self.timers.pop
 
@@ -84,7 +91,7 @@ class Hub(HubSkeleton):
             # delayed in registering followed expired and closed timer fd
             self.timers.pop(fileno, None)
             timer.seconds = 0  # pass-through
-            return self.add_timer(timer)
+            return self.add_timer(timer)  # really bad, if can't make a timer
         timerfd_settime(fileno, 0, seconds, 0)
         return timer
         #
@@ -98,6 +105,24 @@ class Hub(HubSkeleton):
         except:
             pass
         self.pop_timer(fileno, None)
+        #
+
+    def event_add(self, cb, semaphore=True):
+        fileno = int(eventfd_create(0, EV_FLAGS if semaphore else eventfd_c.EFD_NONBLOCK))
+        self.fd_events[fileno] = cb
+        self.poll.register(fileno, EV_READ_MASK)
+        return fileno
+        #
+
+    def event_close(self, fileno):
+        if self.fd_events.pop(fileno, None) is None:
+            return False
+        try:
+            self.poll.unregister(fileno)
+            os.close(fileno)
+        except:
+            pass
+        return True
         #
 
     def _obsolete(self, fileno):
@@ -159,8 +184,6 @@ class Hub(HubSkeleton):
 
     def execute_polling(self):
 
-        timers = self.timers
-        pop_timer = self.pop_timer
         timers_immediate = self.timers_immediate
 
         get_reader = self.get_reader
@@ -177,7 +200,7 @@ class Hub(HubSkeleton):
                 except:
                     pass
         try:
-            fd_events = self.poll.poll(0 if timers_immediate else -1)
+            events = self.poll.poll(0 if timers_immediate else -1)
         except ValueError:
             if not self.stopping:
                 try:
@@ -192,15 +215,27 @@ class Hub(HubSkeleton):
             print (e, get_errno(e))
             return True
 
-        for f, ev in fd_events:
-            if f in timers:
+        for f, ev in events:
+            if f in self.fd_events:
+                try:
+                    self.fd_events[f](int(eventfd_read(f)))
+                except OSError as e:
+                    if get_errno(e) == errno.EBADF:
+                        self.fd_events[f](-1)  # recreate handler?
+                except io.BlockingIOError:
+                    pass  # over int64
+                except:
+                    pass
+                continue
+
+            if f in self.timers:
                 try:
                     self.poll.unregister(f)
                     os.close(f)  # release resources first
                 except:
                     pass
                 try:
-                    t = pop_timer(f)
+                    t = self.pop_timer(f)
                     if not t.called:
                         t()  # exec timer
                 except:
