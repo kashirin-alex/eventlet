@@ -74,7 +74,7 @@ class Hub(HubSkeleton):
 
     def add_timer(self, timer):
         seconds = timer.seconds
-        if seconds == 0:
+        if seconds < MIN_TIMER:
             self.add_immediate_timer(timer)
             return timer
 
@@ -89,7 +89,7 @@ class Hub(HubSkeleton):
             timer.seconds = 0  # pass-through
             return self.add_timer(timer)  # really bad, if can't make a timer
         # zero and below 1 ns disarms a timer
-        timerfd_settime(fileno, 0, seconds if seconds > MIN_TIMER else MIN_TIMER, 0)
+        timerfd_settime(fileno, 0, seconds, 0)
         return timer
         #
 
@@ -142,8 +142,6 @@ class Hub(HubSkeleton):
 
         for evtype in fd[1]:
             listener = fd[1][evtype]
-            if listener is None:
-                continue
             found = True
             self.closed.append(listener)
             self.remove(listener)
