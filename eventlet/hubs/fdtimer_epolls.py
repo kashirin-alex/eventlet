@@ -85,7 +85,7 @@ class Hub(HubSkeleton):
             self.poll.register(fileno, TIMER_MASK)
         except:
             # delayed in registering followed expired and closed timer fd
-            self.fds.pop(fileno)
+            del self.fds[fileno]
             timer.seconds = 0  # pass-through
             return self.add_timer(timer)  # really bad, if can't make a timer
         # zero and below 1 ns disarms a timer
@@ -235,7 +235,7 @@ class Hub(HubSkeleton):
                 except:
                     pass
                 try:
-                    self.fds.pop(f)
+                    del self.fds[f]
                     details()  # exec timer
                 except:
                     pass
@@ -365,12 +365,12 @@ class Hub(HubSkeleton):
                 if not sec:
                     detail.pop(evtype, None)
                     if not detail:
-                        self.fds.pop(fileno)
+                        del self.fds[fileno]
                 else:
                     # migrate a secondary listener to be the primary listener
                     detail[evtype] = sec.pop(0)
                     if not sec:
-                        self.secondaries[evtype].pop(fileno)
+                        del self.secondaries[evtype][fileno]
         self.register(fileno)
         #
 
