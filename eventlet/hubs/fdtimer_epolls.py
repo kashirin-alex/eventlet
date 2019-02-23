@@ -1,7 +1,6 @@
 import errno
 import os
 import sys
-import io
 import traceback
 
 from linuxfd import timerfd_c, eventfd_c
@@ -16,13 +15,16 @@ select = eventlet.patcher.original('select')
 def is_available():
     return hasattr(select, 'epoll')
 
-# EVENT TYPE INDEX FOR listeners TUPLE
+SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
+# FD-TYPES:
+FILE = 0
+TIMER = 1
+EVENT = 2
+
+# FILE-FD DETAILS:
 READ = 0
 WRITE = 1
 EVENT_TYPES = (READ, WRITE)
-MIN_TIMER = 0.000000001
-
-SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
 
 EPOLLRDHUP = 0x2000
 CLOSED_MASK = select.POLLNVAL
@@ -30,6 +32,10 @@ EXC_MASK = select.EPOLLERR | select.EPOLLHUP
 
 READ_MASK = select.EPOLLIN | select.EPOLLPRI | EXC_MASK
 WRITE_MASK = select.EPOLLOUT | EXC_MASK | EPOLLRDHUP
+
+# TIMER-FD DETAILS:
+MIN_TIMER = 0.000000001
+
 TIMER_MASK = select.EPOLLIN | select.EPOLLONESHOT
 
 TIMER_CLOCK = timerfd_c.CLOCK_MONOTONIC
@@ -37,6 +43,7 @@ TIMER_FLAGS = timerfd_c.TFD_NONBLOCK
 timerfd_create = timerfd_c.timerfd_create
 timerfd_settime = timerfd_c.timerfd_settime
 
+# EVENT-FD DETAILS:
 eventfd_create = eventfd_c.eventfd
 eventfd_read = eventfd_c.eventfd_read
 EV_FLAGS = eventfd_c.EFD_NONBLOCK | eventfd_c.EFD_SEMAPHORE
@@ -50,25 +57,16 @@ class Hub(HubSkeleton):
     def __init__(self, clock=None):
         super(Hub, self).__init__(clock)
 
-        self.listeners = ({}, {})
-        self.listeners_r = self.listeners[READ]
-        self.listeners_w = self.listeners[WRITE]
-        self.get_reader = self.listeners_r.get
-        self.get_writer = self.listeners_w.get
-
+        self.fds = {}
+        # fds map, fileno: tuple(fd-type, type-dependent)
+        #                        FILE   , dict{evtype: listener}
+        #                        TIMER  , timer-obj
+        #                        EVENT  , callback
         self.secondaries = ({}, {})
-        self.pop_sec_reader = self.secondaries[READ].pop
-        self.pop_sec_writer = self.secondaries[WRITE].pop
-
-        self.fd_events = {}
-        self.timers = {}
-        self.pop_timer = self.timers.pop
+        self.closed = []
 
         self.timers_immediate = []
         self.add_immediate_timer = self.timers_immediate.append
-
-        self.closed = []
-        self.add_closed = self.closed.append
 
         self.poll = select.epoll()
         self.poll_backing = select.epoll.fromfd(os.dup(self.poll.fileno()))
@@ -79,43 +77,43 @@ class Hub(HubSkeleton):
         if seconds == 0:
             self.add_immediate_timer(timer)
             return timer
-        elif seconds < MIN_TIMER:  # zero and below 1 ns disarms a timer
-            seconds = MIN_TIMER
 
         fileno = int(timerfd_create(TIMER_CLOCK, TIMER_FLAGS))
         timer.fileno = fileno
-        self.timers[fileno] = timer
+        self.fds[fileno] = (TIMER, timer)
         try:
             self.poll.register(fileno, TIMER_MASK)
         except:
             # delayed in registering followed expired and closed timer fd
-            self.timers.pop(fileno, None)
+            self.fds.pop(fileno)
             timer.seconds = 0  # pass-through
             return self.add_timer(timer)  # really bad, if can't make a timer
-        timerfd_settime(fileno, 0, seconds, 0)
+        # zero and below 1 ns disarms a timer
+        timerfd_settime(fileno, 0, seconds if seconds > MIN_TIMER else MIN_TIMER, 0)
         return timer
         #
 
     def timer_canceled(self, timer):
         fileno = timer.fileno
+        if self.fds.pop(fileno, None) is None:
+            return False
         try:
             timerfd_settime(fileno, 0, 0, 0)
             self.poll.unregister(fileno)
             os.close(fileno)
         except:
             pass
-        self.pop_timer(fileno, None)
         #
 
     def event_add(self, cb, semaphore=True):
         fileno = int(eventfd_create(0, EV_FLAGS if semaphore else eventfd_c.EFD_NONBLOCK))
-        self.fd_events[fileno] = cb
+        self.fds[fileno] = (EVENT, cb)
         self.poll.register(fileno, EV_READ_MASK)
         return fileno
         #
 
     def event_close(self, fileno):
-        if self.fd_events.pop(fileno, None) is None:
+        if self.fds.pop(fileno, None) is None:
             return False
         try:
             self.poll.unregister(fileno)
@@ -131,23 +129,23 @@ class Hub(HubSkeleton):
             their greenlets queued up to send.
         """
         found = False
-        for listener in self.pop_sec_reader(fileno, [])+self.pop_sec_writer(fileno, []):
+        for listener in self.secondaries[READ].pop(fileno, [])+self.secondaries[WRITE].pop(fileno, []):
             found = True
-            self.add_closed(listener)
+            self.closed.append(listener)
             listener.defang()
 
         # For the primary listeners, we actually need to call remove,
         # which may modify the underlying OS polling objects.
-        listener = self.get_reader(fileno)
-        if listener:
+        fd = self.fds.get(fileno)
+        if fd is None:
+            return found
+
+        for evtype in fd[1]:
+            listener = fd[1][evtype]
+            if listener is None:
+                continue
             found = True
-            self.add_closed(listener)
-            self.remove(listener)
-            listener.defang()
-        listener = self.get_writer(fileno)
-        if listener:
-            found = True
-            self.add_closed(listener)
+            self.closed.append(listener)
             self.remove(listener)
             listener.defang()
         return found
@@ -186,9 +184,6 @@ class Hub(HubSkeleton):
 
         timers_immediate = self.timers_immediate
 
-        get_reader = self.get_reader
-        get_writer = self.get_writer
-
         if timers_immediate:
             immediate = timers_immediate[:]  # copy current and exec without new to come
             del timers_immediate[:]
@@ -199,6 +194,7 @@ class Hub(HubSkeleton):
                     t()  # exec immediate timer
                 except:
                     pass
+
         try:
             events = self.poll.poll(0 if timers_immediate else -1)
         except ValueError:
@@ -215,51 +211,55 @@ class Hub(HubSkeleton):
             print (e, get_errno(e))
             return True
 
+        get_fd = self.fds.get
         for f, ev in events:
-            if f in self.fd_events:
+            desc = get_fd(f)
+            if desc is None:  # print ('poll has unknown fileno', f)
+                continue
+
+            typ, details = desc
+            if typ == EVENT:
                 try:
-                    self.fd_events[f](int(eventfd_read(f)))
+                    details(int(eventfd_read(f)))
                 except OSError as e:
                     if get_errno(e) == errno.EBADF:
-                        self.fd_events[f](-1)  # recreate handler?
-                except io.BlockingIOError:
-                    pass  # over int64
+                        details(-1)  # recreate handler?
+                # except io.BlockingIOError: -- write is not done with switch
+                #    pass  # value is above/below int64
                 except:
                     pass
                 continue
 
-            if f in self.timers:
+            if typ == TIMER:
                 try:
                     self.poll.unregister(f)
                     os.close(f)  # release resources first
                 except:
                     pass
                 try:
-                    t = self.pop_timer(f)
+                    t = self.fds.pop(f)
                     if not t.called:
                         t()  # exec timer
                 except:
                     pass
                 continue
 
-            try:
-                if ev & READ_MASK:
-                    l = get_reader(f)
-                    if l is not None:
-                        l.cb(f)
-                if ev & WRITE_MASK:
-                    l = get_writer(f)
-                    if l is not None:
-                        l.cb(f)
-                    if ev & EPOLLRDHUP:
-                        self._obsolete(f)
-                if ev & CLOSED_MASK:
-                    self.remove_descriptor(f)
-            except SYSTEM_EXCEPTIONS:
+            if typ == FILE:
+                try:
+                    if ev & READ_MASK and READ in details:
+                        details[READ].cb(f)
+                    if ev & WRITE_MASK and WRITE in details:
+                        details[WRITE].cb(f)
+                        if ev & EPOLLRDHUP:
+                            self._obsolete(f)
+                    if ev & CLOSED_MASK:
+                        self.remove_descriptor(f)
+                except SYSTEM_EXCEPTIONS:
+                    continue
+                except:
+                    self.squelch_exception(f, sys.exc_info())
+                    clear_sys_exc_info()
                 continue
-            except:
-                self.squelch_exception(f, sys.exc_info())
-                clear_sys_exc_info()
 
         while self.closed:  # Ditch all closed fds first.
             l = self.closed.pop(-1)
@@ -285,19 +285,18 @@ class Hub(HubSkeleton):
                 if not self.execute_polling():
                     break
         finally:
-            while self.timers:
+            while self.fds:
+                fileno, fd = self.fds.popitem()
                 try:
-                    f, t = self.timers.popitem()
-                    timerfd_settime(f, 0, 0, 0)
-                    self.poll.unregister(f)
-                    os.close(f)
+                    if fd[0] == TIMER:
+                        timerfd_settime(fileno, 0, 0, 0)
+                    self.poll.unregister(fileno)
+                    os.close(fileno)
                 except:
                     pass
-
-            self.timers.clear()
             del self.closed[:]
+
             for ev in EVENT_TYPES:
-                self.listeners[ev].clear()
                 self.secondaries[ev].clear()
             self.poll.close()
             self.poll_backing.close()
@@ -306,47 +305,51 @@ class Hub(HubSkeleton):
         #
 
     def get_readers(self):
-        return self.listeners_r.values()
+        return len([None for fileno in self.fds
+                    if self.fds[fileno][0] == FILE and READ in self.fds[fileno][1]])
         #
 
     def get_writers(self):
-        return self.listeners_w.values()
+        return len([None for fileno in self.fds
+                    if self.fds[fileno][0] == FILE and WRITE in self.fds[fileno][1]])
         #
 
     def get_timers_count(self):
-        return len(self.timers)
+        return len([None for fileno in self.fds if self.fds[fileno][0] == TIMER])
         #
 
     def get_listeners_count(self):
-        return len(self.listeners_r),  len(self.listeners_w)
+        return len([None for fileno in self.fds if self.fds[fileno][0] == FILE])
         #
 
     def add(self, evtype, fileno, cb, tb, mac):
         """ *args: evtype, fileno, cb, tb, mac """
         # evtype, fileno = args[0:2]
-        exists = (fileno in self.listeners_r or fileno in self.listeners_w)
+
+        fd = self.fds.get(fileno)
 
         listener = self.lclass(evtype, fileno, cb, tb, mac)
-        bucket = self.listeners[evtype]
-        if exists and fileno in bucket:
-            if self.g_prevent_multiple_readers:
-                raise RuntimeError(
-                    "Second simultaneous %s on fileno %s "
-                    "detected.  Unless you really know what you're doing, "
-                    "make sure that only one greenthread can %s any "
-                    "particular socket.  Consider using a pools.Pool. "
-                    "If you do know what you're doing and want to disable "
-                    "this error, call "
-                    "eventlet.debug.hub_prevent_multiple_readers(False) - MY THREAD=%s; "
-                    "THAT THREAD=%s" % (
-                        evtype, fileno, evtype, cb, bucket[fileno]))
-            # store off the second listener in another structure
-            self.secondaries[evtype].setdefault(fileno, []).append(listener)
+        if fd is not None:
+            if evtype in fd[1]:
+                if self.g_prevent_multiple_readers:
+                    raise RuntimeError(
+                        "Second simultaneous %s on fileno %s "
+                        "detected.  Unless you really know what you're doing, "
+                        "make sure that only one greenthread can %s any "
+                        "particular socket.  Consider using a pools.Pool. "
+                        "If you do know what you're doing and want to disable "
+                        "this error, call "
+                        "eventlet.debug.hub_prevent_multiple_readers(False) - MY THREAD=%s; "
+                        "THAT THREAD=%s" % (evtype, fileno, evtype, cb, fd[1][evtype]))
+                # store off the second listener in another structure
+                self.secondaries[evtype].setdefault(fileno, []).append(listener)
+            else:
+                fd[1][evtype] = listener
         else:
-            bucket[fileno] = listener
+            self.fds[fileno] = (FILE, {evtype: listener})
 
         try:
-            self.register(fileno, new=not exists)
+            self.register(fileno, new=not fd)
         except IOError as ex:
             # ignore EEXIST, #80
             if get_errno(ex) != errno.EEXIST:
@@ -354,12 +357,35 @@ class Hub(HubSkeleton):
         return listener
         #
 
+    def remove(self, listener):
+        fileno = listener.fileno
+        if not listener.spent:
+            fd = self.fds.get(fileno)
+            if fd is not None:
+                detail = fd[1]
+                evtype = listener.evtype
+                sec = self.secondaries[evtype].get(fileno)
+                if not sec:
+                    detail.pop(evtype, None)
+                    if not detail:
+                        self.fds.pop(fileno)
+                else:
+                    # migrate a secondary listener to be the primary listener
+                    detail[evtype] = sec.pop(0)
+                    if not sec:
+                        self.secondaries[evtype].pop(fileno)
+        self.register(fileno)
+        #
+
     def register(self, fileno, new=False):
         mask = 0
-        if fileno in self.listeners_r:
-            mask |= READ_MASK
-        if fileno in self.listeners_w:
-            mask |= WRITE_MASK
+        fd = self.fds.get(fileno)
+        if fd is not None:
+            if READ in fd[1]:
+                mask |= READ_MASK
+            if WRITE in fd[1]:
+                mask |= WRITE_MASK
+
         try:
             if mask:
                 if new:
@@ -382,29 +408,14 @@ class Hub(HubSkeleton):
             raise
         #
 
-    def remove(self, listener):
-        fileno = listener.fileno
-        if not listener.spent:
-            evtype = listener.evtype
-            sec = self.secondaries[evtype].get(fileno)
-            if not sec:
-                self.listeners[evtype].pop(fileno, None)
-            else:
-                # migrate a secondary listener to be the primary listener
-                self.listeners[evtype][fileno] = sec.pop(0)
-                if not sec:
-                    self.secondaries[evtype].pop(fileno)
-        self.register(fileno)
-        #
-
     def remove_descriptor(self, fileno):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
-        for l in [self.listeners_r.pop(fileno, None)] + [self.listeners_w.pop(fileno, None)] + \
-                self.pop_sec_reader(fileno, []) + self.pop_sec_writer(fileno, []):
-            if l is None:
-                continue
-
+        for l in [fd[1][evtype]
+                  for fd in [self.fds.pop(fileno, None)] if fd is not None
+                  for evtype in fd[1]] \
+                + self.secondaries[READ].pop(fileno, []) \
+                + self.secondaries[WRITE].pop(fileno, []):
             try:
                 l.cb(fileno)
             except:
