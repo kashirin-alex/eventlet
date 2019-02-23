@@ -236,8 +236,7 @@ class Hub(HubSkeleton):
                     pass
                 try:
                     self.fds.pop(f)
-                    if not details.called:
-                        details()  # exec timer
+                    details()  # exec timer
                 except:
                     pass
                 continue
