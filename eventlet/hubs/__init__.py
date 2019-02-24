@@ -13,7 +13,7 @@ _threadlocal = threading.local()
 if hasattr(_threadlocal, 'hub'):
     del _threadlocal.hub
 
-hub_name_priority = (os.environ.get('EVENTLET_HUB', None), 'fdtimer_epolls', 'epolls', 'kqueue', 'poll', 'selects')
+hub_name_priority = (os.environ.get('EVENTLET_HUB', None), 'v1_epolls_linuxfd', 'epolls', 'kqueue', 'poll', 'selects')
 
 
 def get_default_hub(mod=None):
