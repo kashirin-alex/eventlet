@@ -140,8 +140,10 @@ class Hub(HubSkeleton):
         if fd is None:
             return found
 
-        for evtype in fd[1]:
-            listener = fd[1][evtype]
+        for evtype in EVENT_TYPES:
+            listener = fd[1].get(evtype)
+            if listener is None:
+                continue
             found = True
             self.closed.append(listener)
             self.remove(listener)
@@ -342,75 +344,54 @@ class Hub(HubSkeleton):
                 self.secondaries[evtype].setdefault(fileno, []).append(listener)
             else:
                 fd[1][evtype] = listener
+            self.modify(fileno, fd)
         else:
             self.fds[fileno] = (FILE, {evtype: listener})
+            self.poll.register(fileno, READ_MASK if evtype == READ else WRITE_MASK)
 
-        try:
-            self.register(fileno, new=not fd)
-        except IOError as ex:
-            # ignore EEXIST, #80
-            if get_errno(ex) != errno.EEXIST:
-                raise
         return listener
         #
 
     def remove(self, listener):
         fileno = listener.fileno
+        fd = self.fds.get(fileno)
+        if fd is None:
+            return
+
         if not listener.spent:
-            fd = self.fds.get(fileno)
-            if fd is not None:
-                detail = fd[1]
-                evtype = listener.evtype
-                sec = self.secondaries[evtype].get(fileno)
+            evtype = listener.evtype
+            sec = self.secondaries[evtype].get(fileno)
+            if not sec:
+                fd[1].pop(evtype, None)
+            else:
+                # migrate a secondary listener to be the primary listener
+                fd[1][evtype] = sec.pop(0)
                 if not sec:
-                    detail.pop(evtype, None)
-                    if not detail:
-                        del self.fds[fileno]
-                else:
-                    # migrate a secondary listener to be the primary listener
-                    detail[evtype] = sec.pop(0)
-                    if not sec:
-                        del self.secondaries[evtype][fileno]
-        self.register(fileno)
+                    del self.secondaries[evtype][fileno]
+
+        if not fd[1]:
+            del self.fds[fileno]
+            self.poll.unregister(fileno)
+            return
+        self.modify(fileno, fd)
         #
 
-    def register(self, fileno, new=False):
+    def modify(self, fileno, fd):
         mask = 0
-        fd = self.fds.get(fileno)
-        if fd is not None:
-            if READ in fd[1]:
-                mask |= READ_MASK
-            if WRITE in fd[1]:
-                mask |= WRITE_MASK
-
-        try:
-            if mask:
-                if new:
-                    self.poll.register(fileno, mask)
-                    return
-                try:
-                    self.poll.modify(fileno, mask)
-                except (IOError, OSError):
-                    self.poll.register(fileno, mask)
-                return
-            try:
-                self.poll.unregister(fileno)
-            except (KeyError, IOError, OSError):
-                # raised if we try to remove a fileno that was
-                # already removed/invalid
-                pass
-        except ValueError:
-            # fileno is bad, issue 74
-            self.remove_descriptor(fileno)
-            raise
+        if READ in fd[1]:
+            mask |= READ_MASK
+        if WRITE in fd[1]:
+            mask |= WRITE_MASK
+        self.poll.modify(fileno, mask)
         #
 
     def remove_descriptor(self, fileno):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
-        for l in [fd[1][evtype]
-                  for fd in [self.fds.pop(fileno, None)] if fd is not None
-                  for evtype in fd[1]] \
+        fd = self.fds.pop(fileno, None)
+        if fd is None:
+            return
+        for l in [fd[1][evtype] for evtype in fd[1]] if fd is not None else [] \
                 + self.secondaries[READ].pop(fileno, []) \
                 + self.secondaries[WRITE].pop(fileno, []):
             try:
