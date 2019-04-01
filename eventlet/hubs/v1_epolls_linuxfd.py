@@ -137,7 +137,7 @@ class Hub(HubSkeleton):
         # For the primary listeners, we actually need to call remove,
         # which may modify the underlying OS polling objects.
         fd = self.fds.get(fileno)
-        if fd is None:
+        if fd is None or fd[0] != FILE:
             return found
 
         for evtype in EVENT_TYPES:
