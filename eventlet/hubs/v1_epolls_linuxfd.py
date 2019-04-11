@@ -355,7 +355,7 @@ class Hub(HubSkeleton):
     def remove(self, listener):
         fileno = listener.fileno
         fd = self.fds.get(fileno)
-        if fd is None:
+        if fd is None or fd[0] != FILE:
             return
 
         if not listener.spent:
@@ -371,7 +371,10 @@ class Hub(HubSkeleton):
 
         if not fd[1]:
             del self.fds[fileno]
-            self.poll.unregister(fileno)
+            try:
+                self.poll.unregister(fileno)
+            except:
+                pass
             return
         self.modify(fileno, fd)
         #
