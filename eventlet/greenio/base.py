@@ -128,9 +128,10 @@ class GreenSocket(object):
     """
 
     # This placeholder is to prevent __getattr__ from creating an infinite call loop
-    fd = None
+    # fd = None # > probability for mem-leaks
 
     def __init__(self, family=socket.AF_INET, *args, **kwargs):
+        self.fd = None
         should_set_nonblocking = kwargs.pop('set_nonblocking', True)
         if isinstance(family, six.integer_types):
             fd = _original_socket(family, *args, **kwargs)
