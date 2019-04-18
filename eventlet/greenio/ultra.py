@@ -404,9 +404,9 @@ class UltraGreenSocket(object):
         else:
             kw['do_handshake_on_connect'] = False
             fd = ctx.wrap_socket(self.fd, **kw)
+            self.do_handshake()
 
         self._setup(fd, self._timeout)
-        self.do_handshake()
         #
 
     def unwrap(self):
