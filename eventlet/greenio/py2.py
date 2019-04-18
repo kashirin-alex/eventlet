@@ -122,9 +122,9 @@ class _SocketDuckForFd(object):
     """Class implementing all socket method used by _fileobject
     in cooperative manner using low level os I/O calls.
     """
-    _refcount = 0
 
     def __init__(self, fileno):
+        self._refcount = 0
         self._fileno = fileno
         notify_opened(fileno)
         self._closed = False
