@@ -135,10 +135,10 @@ def trampoline(fd, read=None, write=None, timeout=None,
     assert hub.greenlet is not current, 'do not call blocking functions from the mainloop'
 
     if timeout is not None:
-        def _timeout(exc):
-            # This is only useful to insert debugging
-            current.throw(exc)
-        t = hub.schedule_call_global(timeout, _timeout, timeout_exc)
+        # def _timeout(exc):
+        #   This is only useful to insert debugging
+        #    current.throw(exc)
+        t = hub.schedule_call_global(timeout, current.throw, timeout_exc)
     else:
         t = None
     try:
