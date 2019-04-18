@@ -1,36 +1,23 @@
 import errno
 import sys
-import socket
-import ssl as _ssl
 
 import eventlet
 from eventlet.hubs import trampoline, notify_opened, IOClosed, active_hub
 from eventlet.support import get_errno
 import six
 
+from eventlet.green.OpenSSL.SSL import orig_SSL as SSL
+ssl = eventlet.patcher.original('ssl')
+socket = eventlet.patcher.original('socket')
+
 __all__ = [
     'UltraGreenSocket', '_GLOBAL_DEFAULT_TIMEOUT',
     'SOCKET_BLOCKING', 'SOCKET_CLOSED', 'CONNECT_ERR', 'CONNECT_SUCCESS',
-    'shutdown_safe', 'SSL',
+    'shutdown_safe',
     'socket_timeout',
 ]
-try:
-    from OpenSSL import SSL
-except ImportError:
-    # pyOpenSSL not installed, define exceptions anyway for convenience
-    class SSL(object):
-        class WantWriteError(Exception):
-            pass
 
-        class WantReadError(Exception):
-            pass
-
-        class ZeroReturnError(Exception):
-            pass
-
-        class SysCallError(Exception):
-            pass
-SSLError = _ssl.SSLError
+SSLError = ssl.SSLError
 #
 
 BUFFER_SIZE = 4096
@@ -274,7 +261,7 @@ class UltraGreenSocket(object):
                 if not self.is_ssl:
                     return UltraGreenSocket(fd=client), addr
 
-                new_ssl = _ssl.SSLSocket(
+                new_ssl = ssl.SSLSocket(
                     client,
                     keyfile=fd.keyfile,
                     certfile=fd.certfile,
@@ -365,10 +352,10 @@ class UltraGreenSocket(object):
         return self._recv_loop(self.fd.recvfrom_into, 0, buff, nbytes, flags)
 
     def _trampoline_ssl(self, e):
-        if get_errno(e) == _ssl.SSL_ERROR_WANT_READ:
+        if get_errno(e) == ssl.SSL_ERROR_WANT_READ:
             self._trampoline(read=True, timeout=self._timeout, timeout_exc=SSLError('timed out'))
             return
-        if get_errno(e) == _ssl.SSL_ERROR_WANT_WRITE:
+        if get_errno(e) == ssl.SSL_ERROR_WANT_WRITE:
             self._trampoline(write=True, timeout=self._timeout, timeout_exc=SSLError('timed out'))
             return
         raise e
