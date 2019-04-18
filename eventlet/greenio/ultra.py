@@ -298,44 +298,6 @@ class UltraGreenSocket(object):
                 dupped.close = None
             return res
 
-    def _recv_loop(self, recv_meth, empty_val, *args):
-        _timeout_exc = socket_timeout('timed out')
-        while True:
-            try:
-                # recv: bufsize=0?
-                # recv_into: buffer is empty?
-                # This is needed because behind the scenes we use sockets in
-                # nonblocking mode and builtin recv* methods. Attempting to read
-                # 0 bytes from a nonblocking socket using a builtin recv* method
-                # does not raise a timeout exception. Since we're simulating
-                # a blocking socket here we need to produce a timeout exception
-                # if needed, hence the call to trampoline.
-                if self.is_ssl and not args[0]:
-                    self._trampoline(read=True, timeout=self._timeout, timeout_exc=_timeout_exc)
-                return recv_meth(*args)
-
-            except SSLError as e:
-                self._trampoline_ssl(e)
-                continue
-
-            except socket.error as e:
-                if get_errno(e) in SOCKET_BLOCKING:
-                    pass
-                elif get_errno(e) in SOCKET_CLOSED:
-                    return empty_val
-                else:
-                    raise
-
-            if self.is_ssl:
-                continue
-
-            try:
-                self._trampoline(read=True, timeout=self._timeout, timeout_exc=_timeout_exc)
-            except IOClosed as e:
-                # Perhaps we should return 'empty_val' instead?
-                raise EOFError()
-        #
-
     def recv(self, bufsize, flags=0):
         return self._recv_loop(self.fd.recv, b'', bufsize, flags)
 
@@ -353,38 +315,67 @@ class UltraGreenSocket(object):
     def recvfrom_into(self, buff, nbytes=0, flags=0):
         return self._recv_loop(self.fd.recvfrom_into, 0, buff, nbytes, flags)
 
-    def _trampoline_ssl(self, e):
-        if get_errno(e) == ssl.SSL_ERROR_WANT_READ:
-            self._trampoline(read=True, timeout=self._timeout, timeout_exc=SSLError('timed out'))
-            return
-        if get_errno(e) == ssl.SSL_ERROR_WANT_WRITE:
-            self._trampoline(write=True, timeout=self._timeout, timeout_exc=SSLError('timed out'))
-            return
+    def _trampoline_on_possible(self, e, read=False, write=False):
+
+        try:
+            raise e
+
+        except (ssl.SSLWantReadError, SSL.WantReadError):
+            read = True
+            write = False
+        except (ssl.SSLWantWriteError, SSL.WantWriteError):
+            read = False
+            write = True
+        except (ssl.SSLZeroReturnError, SSL.ZeroReturnError):
+            if not read:
+                raise e
+            return True
+        #
+        # except SSLError as e:
+        #    eno = get_errno(e)
+        #    read = eno == ssl.SSL_ERROR_WANT_READ
+        #    write = eno == ssl.SSL_ERROR_WANT_WRITE
+
+        except socket.error as e:
+            eno = get_errno(e)
+            if eno in SOCKET_BLOCKING:
+                pass
+            elif eno in SOCKET_CLOSED:
+                if not read:
+                    raise e
+                return True
+            else:
+                raise e
+
+        if read or write:
+            try:
+                self._trampoline(read=read, write=write, timeout=self._timeout,
+                                 timeout_exc=SSLError('timed out') if self.is_ssl else socket_timeout('timed out'))
+                return
+            except IOClosed:
+                raise socket.error(errno.ECONNRESET, 'Connection closed by another thread')
+
         raise e
         #
 
-    def _send_loop(self, send_method, data, *args):
+    def _recv_loop(self, recv_meth, empty_val, *args):
+        while True:
+            try:
+                if not self.is_ssl and not args[0]:  # no timeout on Zero bytes to read
+                    self._trampoline(read=True, timeout=self._timeout, timeout_exc=socket_timeout('timed out'))
 
+                return recv_meth(*args)
+            except Exception as e:
+                if self._trampoline_on_possible(e, read=True):
+                    return empty_val
+                    #
+
+    def _send_loop(self, send_method, data, *args):
         while True:
             try:
                 return send_method(data, *args)
-
-            except SSLError as e:
-                self._trampoline_ssl(e)
-                continue
-
-            except socket.error as e:
-                eno = get_errno(e)
-                if eno in SOCKET_CLOSED or eno not in SOCKET_BLOCKING:
-                    raise socket.error(eno)
-
-            if self.is_ssl:
-                continue
-
-            try:
-                self._trampoline(write=True, timeout=self._timeout, timeout_exc=socket_timeout('timed out'))
-            except IOClosed:
-                raise socket.error(errno.ECONNRESET, 'Connection closed by another thread')
+            except Exception as e:
+                self._trampoline_on_possible(e, write=True)
         #
 
     def send(self, data, flags=0):
@@ -416,8 +407,8 @@ class UltraGreenSocket(object):
             try:
                 self._setup(self.fd.unwrap())
                 return self.fd
-            except SSLError as e:
-                self._trampoline_ssl(e)
+            except Exception as e:
+                self._trampoline_on_possible(e)
         #
 
     def do_handshake(self):
@@ -425,8 +416,8 @@ class UltraGreenSocket(object):
         while True:
             try:
                 return self.fd.do_handshake()
-            except SSLError as e:
-                self._trampoline_ssl(e)
+            except Exception as e:
+                self._trampoline_on_possible(e)
         #
 
     def close(self):
