@@ -318,6 +318,8 @@ class UltraGreenSocket(object):
                 return
             except IOClosed:
                 raise socket.error(errno.ECONNRESET, 'Connection closed by another thread')
+            except Exception as e:
+                raise e
 
         raise e
         #
