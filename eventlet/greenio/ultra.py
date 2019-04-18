@@ -128,16 +128,15 @@ class UltraGreenSocket(object):
     performance optimal intend
     """
 
-    __slots__ = ['fd',
+    __slots__ = ['fd', '_timeout',
                  'fileno', 'getsockname',
                  'getsockopt', 'setsockopt',
-                 'gettimeout', 'settimeout',
                  'bind', 'listen', 'shutdown',
                  'is_ssl', '_closed']
 
     def __init__(self, family=socket.AF_INET, *args, **kwargs):
         self._closed = True
-        timeout = kwargs.pop('timeout', None)
+        self._timeout = kwargs.pop('timeout', None)
 
         fd = kwargs.pop('fd', None)
         if fd is None:
@@ -145,17 +144,16 @@ class UltraGreenSocket(object):
             # Notify the hub that this is a newly-opened socket.
             notify_opened(fd.fileno())
 
-        self._setup(fd, timeout)
+        self._setup(fd, self._timeout)
         #
 
     def _setup(self, fd, timeout):
 
         fd.setblocking(0)
-        fd.settimeout(timeout)
+        fd.settimeout(0.0)
+        self.settimeout(timeout)
 
         # Copy some attributes from underlying real socket.
-        self.gettimeout = fd.gettimeout
-        self.settimeout = fd.settimeout
 
         self.bind = fd.bind
         self.fileno = fd.fileno
@@ -168,6 +166,14 @@ class UltraGreenSocket(object):
         self.fd = fd
         self._closed = False
         self.is_ssl = hasattr(fd, 'ssl_version')
+        #
+
+    def settimeout(self, timeout):
+        self._timeout = timeout
+        #
+
+    def gettimeout(self):
+        return self._timeout
         #
 
     @property
@@ -228,7 +234,7 @@ class UltraGreenSocket(object):
 
     def connect(self, address):
         fd = self.fd
-        if self.gettimeout() is None:
+        if self._timeout is None:
             while not socket_connect(fd, address):
                 try:
                     self._trampoline(write=True)
@@ -238,7 +244,7 @@ class UltraGreenSocket(object):
             return
 
         clock = active_hub.inst.clock
-        end = clock() + self.gettimeout()
+        end = clock() + self._timeout
         while not socket_connect(fd, address):
             if clock() >= end:
                 raise socket_timeout('timed out')
@@ -280,7 +286,7 @@ class UltraGreenSocket(object):
                     suppress_ragged_eofs=fd.suppress_ragged_eofs)
                 return UltraGreenSocket(fd=new_ssl), addr
 
-            self._trampoline(read=True, timeout=self.gettimeout(), timeout_exc=_timeout_exc)
+            self._trampoline(read=True, timeout=self._timeout, timeout_exc=_timeout_exc)
         #
 
     if six.PY3:
@@ -316,7 +322,7 @@ class UltraGreenSocket(object):
                 # a blocking socket here we need to produce a timeout exception
                 # if needed, hence the call to trampoline.
                 if self.is_ssl and not args[0]:
-                    self._trampoline(read=True, timeout=self.gettimeout(), timeout_exc=_timeout_exc)
+                    self._trampoline(read=True, timeout=self._timeout, timeout_exc=_timeout_exc)
                 return recv_meth(*args)
 
             except SSLError as e:
@@ -335,7 +341,7 @@ class UltraGreenSocket(object):
                 continue
 
             try:
-                self._trampoline(read=True, timeout=self.gettimeout(), timeout_exc=_timeout_exc)
+                self._trampoline(read=True, timeout=self._timeout, timeout_exc=_timeout_exc)
             except IOClosed as e:
                 # Perhaps we should return 'empty_val' instead?
                 raise EOFError()
@@ -360,10 +366,10 @@ class UltraGreenSocket(object):
 
     def _trampoline_ssl(self, e):
         if get_errno(e) == _ssl.SSL_ERROR_WANT_READ:
-            self._trampoline(read=True, timeout=self.gettimeout(), timeout_exc=SSLError('timed out'))
+            self._trampoline(read=True, timeout=self._timeout, timeout_exc=SSLError('timed out'))
             return
         if get_errno(e) == _ssl.SSL_ERROR_WANT_WRITE:
-            self._trampoline(write=True, timeout=self.gettimeout(), timeout_exc=SSLError('timed out'))
+            self._trampoline(write=True, timeout=self._timeout, timeout_exc=SSLError('timed out'))
             return
         raise e
         #
@@ -387,7 +393,7 @@ class UltraGreenSocket(object):
                 continue
 
             try:
-                self._trampoline(write=True, timeout=self.gettimeout(), timeout_exc=socket_timeout('timed out'))
+                self._trampoline(write=True, timeout=self._timeout, timeout_exc=socket_timeout('timed out'))
             except IOClosed:
                 raise socket.error(errno.ECONNRESET, 'Connection closed by another thread')
         #
@@ -408,7 +414,7 @@ class UltraGreenSocket(object):
     def wrap_socket(self, ctx, **kw):
         self._setup(SSL.Connection(ctx, self.fd) if kw.pop('accept_state', None)
                     else ctx.wrap_socket(self.fd, **kw),
-                    self.gettimeout())
+                    self._timeout)
         #
 
     def unwrap(self):
