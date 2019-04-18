@@ -11,39 +11,34 @@ ssl = eventlet.patcher.original('ssl')
 socket = eventlet.patcher.original('socket')
 
 __all__ = [
-    'UltraGreenSocket', '_GLOBAL_DEFAULT_TIMEOUT',
-    'SOCKET_BLOCKING', 'SOCKET_CLOSED', 'CONNECT_ERR', 'CONNECT_SUCCESS',
-    'shutdown_safe',
+    'UltraGreenSocket',
+    'CONNECT_SUCCESS', 'SOCKET_BLOCKING', 'SOCKET_CLOSED', 'CONNECT_ERR',
     'socket_timeout',
 ]
-
-SSLError = ssl.SSLError
 #
 
 BUFFER_SIZE = 4096
-CONNECT_ERR = set((errno.EINPROGRESS, errno.EALREADY, errno.EWOULDBLOCK))
 CONNECT_SUCCESS = set((0, errno.EISCONN))
+SOCKET_BLOCKING = set((errno.EAGAIN, errno.EWOULDBLOCK))
+SOCKET_CLOSED = set((errno.ECONNRESET, errno.ESHUTDOWN))
+CONNECT_ERR = set((errno.EINPROGRESS, errno.EALREADY, errno.EWOULDBLOCK))
+
 if sys.platform[:3] == "win":
     CONNECT_ERR.add(errno.WSAEINVAL)   # Bug 67
-
-
-if sys.platform[:3] == "win":
-    # winsock sometimes throws ENOTCONN
-    SOCKET_BLOCKING = set((errno.EAGAIN, errno.EWOULDBLOCK,))
-    SOCKET_CLOSED = set((errno.ECONNRESET, errno.ENOTCONN, errno.ESHUTDOWN))
+    SOCKET_CLOSED.add(errno.ENOTCONN)  # winsock sometimes throws ENOTCONN
 else:
     # oddly, on linux/darwin, an unconnected socket is expected to block,
     # so we treat ENOTCONN the same as EWOULDBLOCK
-    SOCKET_BLOCKING = set((errno.EAGAIN, errno.EWOULDBLOCK, errno.ENOTCONN))
-    SOCKET_CLOSED = set((errno.ECONNRESET, errno.ESHUTDOWN, errno.EPIPE))
+    SOCKET_BLOCKING.add(errno.ENOTCONN)
+    SOCKET_CLOSED.add(errno.EPIPE)
 
-if six.PY2:
-    _python2_fileobject = socket._fileobject
 
-_original_socket = eventlet.patcher.original('socket').socket
-
-_GLOBAL_DEFAULT_TIMEOUT = getattr(socket, '_GLOBAL_DEFAULT_TIMEOUT', object())
 socket_timeout = eventlet.timeout.wrap_is_timeout(socket.timeout)
+SSLError = ssl.SSLError
+
+ex_want_read = (ssl.SSLWantReadError, SSL.WantReadError)
+ex_want_write = (ssl.SSLWantWriteError, SSL.WantWriteError)
+ex_return_zero = (ssl.SSLWantWriteError, SSL.WantWriteError)
 #
 
 
@@ -58,12 +53,14 @@ def socket_connect(descriptor, address):
     if err not in CONNECT_SUCCESS:
         raise socket.error(err, errno.errorcode[err])
     return descriptor
+    #
 
 
 def socket_checkerr(descriptor):
     err = descriptor.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
     if err not in CONNECT_SUCCESS:
         raise socket.error(err, errno.errorcode[err])
+    #
 
 
 def socket_accept(descriptor):
@@ -78,33 +75,7 @@ def socket_accept(descriptor):
         if get_errno(e) == errno.EWOULDBLOCK:
             return None
         raise
-
-
-def shutdown_safe(sock):
-    """Shuts down the socket. This is a convenience method for
-    code that wants to gracefully handle regular sockets, SSL.Connection
-    sockets from PyOpenSSL and ssl.SSLSocket objects from Python 2.7 interchangeably.
-    Both types of ssl socket require a shutdown() before close,
-    but they have different arity on their shutdown method.
-
-    Regular sockets don't need a shutdown before close, but it doesn't hurt.
-    """
-    try:
-        try:
-            # socket, ssl.SSLSocket
-            return sock.shutdown(socket.SHUT_RDWR)
-        except TypeError:
-            # SSL.Connection
-            return sock.shutdown()
-    except socket.error as e:
-        # we don't care if the socket is already closed;
-        # this will often be the case in an http server context
-        if get_errno(e) not in (errno.ENOTCONN, errno.EBADF, errno.ENOTSOCK):
-            raise
-
-
-def _operation_on_closed_file(*args, **kwargs):
-    raise ValueError("I/O operation on closed file")
+    #
 
 
 #
@@ -127,7 +98,7 @@ class UltraGreenSocket(object):
 
         fd = kwargs.pop('fd', None)
         if fd is None:
-            fd = _original_socket(family, *args, **kwargs)
+            fd = socket.socket(family, *args, **kwargs)
             # Notify the hub that this is a newly-opened socket.
             notify_opened(fd.fileno())
 
@@ -251,7 +222,7 @@ class UltraGreenSocket(object):
 
     def accept(self):
         fd = self.fd
-        _timeout_exc = socket_timeout('timed out')
+        _timeout_exc = SSLError('timed out') if self.is_ssl else socket_timeout('timed out')
         while True:
             res = socket_accept(fd)
             if res is not None:
@@ -282,13 +253,13 @@ class UltraGreenSocket(object):
         def makefile(self, *args, **kwargs):
             if self.is_ssl:
                 raise NotImplementedError("Makefile not supported on SSL sockets")
-            return _original_socket.makefile(self, *args, **kwargs)
+            return socket.socket.makefile(self, *args, **kwargs)
     else:
         def makefile(self, *args, **kwargs):
             if self.is_ssl:
                 raise NotImplementedError("Makefile not supported on SSL sockets")
             dupped = self.dup()
-            res = _python2_fileobject(dupped, *args, **kwargs)
+            res = socket._fileobject(dupped, *args, **kwargs)
             if hasattr(dupped, "_drop"):
                 dupped._drop()
                 # Making the close function of dupped None so that when garbage collector
@@ -317,24 +288,19 @@ class UltraGreenSocket(object):
 
     def _trampoline_on_possible(self, e, read=False, write=False):
 
+        print e
         try:
             raise e
-
-        except (ssl.SSLWantReadError, SSL.WantReadError):
+        except ex_want_read:
             read = True
             write = False
-        except (ssl.SSLWantWriteError, SSL.WantWriteError):
+        except ex_want_write:
             read = False
             write = True
-        except (ssl.SSLZeroReturnError, SSL.ZeroReturnError):
+        except ex_return_zero:
             if not read:
                 raise e
             return True
-        #
-        # except SSLError as e:
-        #    eno = get_errno(e)
-        #    read = eno == ssl.SSL_ERROR_WANT_READ
-        #    write = eno == ssl.SSL_ERROR_WANT_WRITE
 
         except socket.error as e:
             eno = get_errno(e)
