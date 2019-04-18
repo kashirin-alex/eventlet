@@ -271,7 +271,9 @@ class UltraGreenSocket(object):
                     ca_certs=fd.ca_certs,
                     do_handshake_on_connect=False,
                     suppress_ragged_eofs=fd.suppress_ragged_eofs)
-                return UltraGreenSocket(fd=new_ssl), addr
+                fd = UltraGreenSocket(fd=new_ssl)
+                fd.do_handshake()
+                return fd, addr
 
             self._trampoline(read=True, timeout=self._timeout, timeout_exc=_timeout_exc)
         #
