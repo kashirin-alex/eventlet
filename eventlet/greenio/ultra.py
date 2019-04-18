@@ -192,7 +192,6 @@ class UltraGreenSocket(object):
     def __getattr__(self, name):
         if self.fd is None:
             raise AttributeError(name)
-        print ('__getattr__', name)
         return getattr(self.fd, name)
 
     if "__pypy__" in sys.builtin_module_names:
