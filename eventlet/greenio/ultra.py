@@ -403,12 +403,12 @@ class UltraGreenSocket(object):
     def wrap_socket(self, ctx, **kw):
         if kw.pop('accept_state', None):
             fd = SSL.Connection(ctx, self.fd)
+            self._setup(fd, self._timeout)
         else:
             kw['do_handshake_on_connect'] = False
             fd = ctx.wrap_socket(self.fd, **kw)
+            self._setup(fd, self._timeout)
             self.do_handshake()
-
-        self._setup(fd, self._timeout)
         #
 
     def unwrap(self):
