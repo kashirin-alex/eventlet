@@ -368,7 +368,7 @@ class UltraGreenSocket(object):
     def unwrap(self):
         while True:
             try:
-                self._setup(self.fd.unwrap())
+                self._setup(self.fd.unwrap(), self._timeout)
                 return self.fd
             except Exception as e:
                 self._trampoline_on_possible(e)
