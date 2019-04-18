@@ -132,8 +132,7 @@ class UltraGreenSocket(object):
                  'fileno', 'getsockname',
                  'getsockopt', 'setsockopt',
                  'gettimeout', 'settimeout',
-                 'bind', 'listen',
-                 'close',  'shutdown',
+                 'bind', 'listen', 'shutdown',
                  'is_ssl', '_closed']
 
     def __init__(self, family=socket.AF_INET, *args, **kwargs):
