@@ -331,7 +331,7 @@ class UltraGreenSocket(object):
                 else:
                     raise
 
-            if not self.is_ssl:
+            if self.is_ssl:
                 continue
 
             try:
@@ -383,7 +383,7 @@ class UltraGreenSocket(object):
                 if eno in SOCKET_CLOSED or eno not in SOCKET_BLOCKING:
                     raise socket.error(eno)
 
-            if not self.is_ssl:
+            if self.is_ssl:
                 continue
 
             try:
@@ -462,4 +462,4 @@ class UltraGreenSocket(object):
 # r = UltraGreenSocket(af, socket.SOCK_STREAM)
 # r.conn ... ()
 # r.wrap_socket(ctx)
-# r.ssl_unwrap()
+# r.unwrap()
