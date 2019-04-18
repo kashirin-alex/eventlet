@@ -399,9 +399,14 @@ class UltraGreenSocket(object):
         #
 
     def wrap_socket(self, ctx, **kw):
-        self._setup(SSL.Connection(ctx, self.fd) if kw.pop('accept_state', None)
-                    else ctx.wrap_socket(self.fd, **kw),
-                    self._timeout)
+        if kw.pop('accept_state', None):
+            fd = SSL.Connection(ctx, self.fd)
+        else:
+            kw['do_handshake_on_connect'] = False
+            fd = ctx.wrap_socket(self.fd, **kw)
+
+        self._setup(fd, self._timeout)
+        self.do_handshake()
         #
 
     def unwrap(self):
