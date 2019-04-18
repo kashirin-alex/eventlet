@@ -289,7 +289,7 @@ class UltraGreenSocket(object):
         type_e = type(e)
 
         if type_e in ex_timeout:
-            raise
+            raise e
         elif type_e in ex_want_read:
             read = True
             write = False
