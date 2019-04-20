@@ -33,7 +33,7 @@ else:
 
 ex_want_read = (ssl.SSLWantReadError, SSL.WantReadError)
 ex_want_write = (ssl.SSLWantWriteError, SSL.WantWriteError)
-# ex_return_zero = (ssl.SSLZeroReturnError, SSL.ZeroReturnError)
+ex_return_zero = (ssl.SSLZeroReturnError, SSL.ZeroReturnError)
 
 timeout_exc = eventlet.timeout.wrap_is_timeout(socket.timeout)(errno.ETIMEDOUT, 'timed out')
 # timeout_ssl_exc = ssl.SSLError(errno.ETIMEDOUT, 'timed out')
@@ -298,10 +298,10 @@ class UltraGreenSocket(object):
         elif type_e in ex_want_write:
             read = False
             write = True
-        # elif type_e in ex_return_zero:
-        #    if not read:
-        #        raise e
-        #    return True
+        elif type_e in ex_return_zero:
+            if not read:
+                raise e
+            return True
 
         elif socket.error is type_e:
             eno = get_errno(e)
@@ -313,6 +313,8 @@ class UltraGreenSocket(object):
                 return True
             else:
                 raise e
+        else:
+            raise e
 
         if read or write:
             try:
