@@ -126,6 +126,10 @@ class UltraGreenSocket(object):
         # self._timeout_exc = timeout_ssl_exc if self.is_ssl else timeout_exc
         #
 
+    @property
+    def _sock(self):
+        return self
+
     def settimeout(self, timeout):
         self._timeout = timeout
         #
@@ -133,10 +137,6 @@ class UltraGreenSocket(object):
     def gettimeout(self):
         return self._timeout
         #
-
-    @property
-    def _sock(self):
-        return self
 
     def dup(self, *args, **kw):
         if self.is_ssl:
@@ -360,17 +360,21 @@ class UltraGreenSocket(object):
                 data = data[offset:]
         #
 
-    def wrap_socket(self, ctx, **kw):
+    def ssl_wrap(self, ctx, **kw):
         if isinstance(ctx, SSL.Context):
             self._setup(SSL.Connection(ctx, self.fd), self._timeout)
+
         elif isinstance(ctx, ssl.SSLContext):
             kw['do_handshake_on_connect'] = False
-            fd = ctx.wrap_socket(self.fd, **kw)
-            self._setup(fd, self._timeout)
+            self._setup(ctx.wrap_socket(self.fd, **kw), self._timeout)
             self.do_handshake()
-        #
 
-    def unwrap(self):
+        # else Additional ssl-context types
+
+        #
+    wrap_socket = ssl_wrap
+
+    def ssl_unwrap(self):
         while True:
             try:
                 self._setup(self.fd.unwrap(), self._timeout)
@@ -378,6 +382,7 @@ class UltraGreenSocket(object):
             except Exception as e:
                 self._trampoline_on_possible(e)
         #
+    unwrap = ssl_unwrap
 
     def do_handshake(self):
         """Perform a TLS/SSL handshake."""
@@ -415,10 +420,10 @@ class UltraGreenSocket(object):
 # r = UltraGreenSocket(af, socket.SOCK_STREAM)
 #    or
 # r =  UltraGreenSocket(fd=r)
-#    or SSL socket (r=ctx.wrap_socket(r, **kw))
-# r =  UltraGreenSocket(fd=r)
+#    or, init with SSL socket
+# r =  UltraGreenSocket(fd=ctx.wrap_socket(r, **kw))
 #    or
-# r = UltraGreenSocket(af, socket.SOCK_STREAM)
-# r.conn ... ()
-# r.wrap_socket(ctx)
-# r.unwrap()
+# with UltraGreenSocket(af, socket.SOCK_STREAM) as r:
+#   r.conn ... ()
+#   r.ssl_wrap(ctx)
+#   r.ssl_unwrap()
