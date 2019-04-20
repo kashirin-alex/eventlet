@@ -172,6 +172,7 @@ class UltraGreenSocket(object):
             were waiting on was associated with a filehandle that's since been
             invalidated.
         """
+        # todo, listener == self
         if self._closed:
             # If we did any logging, alerting to a second trampoline attempt on a closed
             # socket here would be useful.
@@ -270,6 +271,7 @@ class UltraGreenSocket(object):
 
     def recv(self, bufsize, flags=0):
         return self._recv_loop(self.fd.recv, b'', bufsize, flags)
+    read = recv
 
     def recvfrom(self, bufsize, flags=0):
         return self._recv_loop(self.fd.recvfrom, b'', bufsize, flags)
@@ -346,6 +348,7 @@ class UltraGreenSocket(object):
 
     def send(self, data, flags=0):
         return self._send_loop(self.fd.send, data, flags)
+    write = send
 
     def sendto(self, data, *args):
         return self._send_loop(self.fd.sendto, data, *args)
@@ -358,10 +361,9 @@ class UltraGreenSocket(object):
         #
 
     def wrap_socket(self, ctx, **kw):
-        if kw.pop('accept_state', None):
-            fd = SSL.Connection(ctx, self.fd)
-            self._setup(fd, self._timeout)
-        else:
+        if isinstance(ctx, SSL.Context):
+            self._setup(SSL.Connection(ctx, self.fd), self._timeout)
+        elif isinstance(ctx, ssl.SSLContext):
             kw['do_handshake_on_connect'] = False
             fd = ctx.wrap_socket(self.fd, **kw)
             self._setup(fd, self._timeout)
