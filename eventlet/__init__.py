@@ -20,7 +20,10 @@ if os.environ.get('EVENTLET_IMPORT_VERSION_ONLY') != '1':
     from eventlet import support
     from eventlet import timeout
     from eventlet import timer
-    from eventlet import eventfd
+    try:
+        from eventlet import eventfd
+    except:
+        pass
 
     # Force monotonic library search as early as possible.
     # Helpful when CPython < 3.5 on Linux blocked in `os.waitpid(-1)` before first use of hub.
