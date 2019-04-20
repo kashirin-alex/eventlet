@@ -33,7 +33,7 @@ else:
 
 ex_want_read = (ssl.SSLWantReadError, SSL.WantReadError)
 ex_want_write = (ssl.SSLWantWriteError, SSL.WantWriteError)
-ex_return_zero = (ssl.SSLWantWriteError, SSL.WantWriteError)
+ex_return_zero = (ssl.SSLZeroReturnError, SSL.ZeroReturnError)
 
 timeout_exc = eventlet.timeout.wrap_is_timeout(socket.timeout)(errno.ETIMEDOUT, 'timed out')
 # timeout_ssl_exc = ssl.SSLError(errno.ETIMEDOUT, 'timed out')
