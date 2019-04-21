@@ -33,7 +33,7 @@ else:
 
 ex_want_read = (ssl.SSLWantReadError, SSL.WantReadError)
 ex_want_write = (ssl.SSLWantWriteError, SSL.WantWriteError)
-ex_return_zero = (ssl.SSLZeroReturnError, SSL.ZeroReturnError)
+ex_return_zero = (ssl.SSLZeroReturnError, SSL.ZeroReturnError, ssl.SSLSyscallError, SSL.SysCallError)
 
 timeout_exc = eventlet.timeout.wrap_is_timeout(socket.timeout)(errno.ETIMEDOUT, 'timed out')
 # timeout_ssl_exc = ssl.SSLError(errno.ETIMEDOUT, 'timed out')
@@ -374,7 +374,6 @@ class UltraGreenSocket(object):
         # else Additional ssl-context types
 
         #
-    wrap_socket = ssl_wrap
 
     def ssl_unwrap(self):
         while True:
@@ -384,7 +383,6 @@ class UltraGreenSocket(object):
             except Exception as e:
                 self._trampoline_on_possible(e)
         #
-    unwrap = ssl_unwrap
 
     def do_handshake(self):
         """Perform a TLS/SSL handshake."""
