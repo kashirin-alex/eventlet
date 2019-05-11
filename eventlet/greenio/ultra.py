@@ -2,7 +2,7 @@ import errno
 import sys
 
 import eventlet
-from eventlet.hubs import trampoline, notify_opened, IOClosed, active_hub
+from eventlet.hubs import trampoline, notify_opened, notify_close, IOClosed, active_hub
 from eventlet.support import get_errno
 import six
 
@@ -189,6 +189,7 @@ class UltraGreenSocket(object):
     def _mark_as_closed(self):
         """ Mark this socket as being closed """
         self._closed = True
+        notify_close(self.fileno)
         #
 
     def connect(self, address):
