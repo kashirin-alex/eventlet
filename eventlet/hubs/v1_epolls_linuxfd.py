@@ -319,13 +319,13 @@ class Hub(HubSkeleton):
         return len([None for fileno in self.fds if self.fds[fileno][0] == FILE])
         #
 
-    def add(self, evtype, fileno, cb, tb, mac):
+    def add(self, *args):
         """ *args: evtype, fileno, cb, tb, mac """
-        # evtype, fileno = args[0:2]
+        evtype, fileno = args[:2]
 
         fd = self.fds.get(fileno)
 
-        listener = self.lclass(evtype, fileno, cb, tb, mac)
+        listener = self.lclass(*args)
         if fd is not None:
             if evtype in fd[1]:
                 if self.g_prevent_multiple_readers:
@@ -337,7 +337,7 @@ class Hub(HubSkeleton):
                         "If you do know what you're doing and want to disable "
                         "this error, call "
                         "eventlet.debug.hub_prevent_multiple_readers(False) - MY THREAD=%s; "
-                        "THAT THREAD=%s" % (evtype, fileno, evtype, cb, fd[1][evtype]))
+                        "THAT THREAD=%s" % (evtype, fileno, evtype, args[2], fd[1][evtype]))
                 # store off the second listener in another structure
                 self.secondaries[evtype].setdefault(fileno, []).append(listener)
             else:
