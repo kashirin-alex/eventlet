@@ -129,10 +129,11 @@ class Hub(HubSkeleton):
             their greenlets queued up to send.
         """
         found = False
-        for listener in self.secondaries[READ].pop(fileno, [])+self.secondaries[WRITE].pop(fileno, []):
-            found = True
-            self.closed.append(listener)
-            listener.defang()
+        if not self.g_prevent_multiple_readers:
+            for listener in self.secondaries[READ].pop(fileno, [])+self.secondaries[WRITE].pop(fileno, []):
+                found = True
+                self.closed.append(listener)
+                listener.defang()
 
         # For the primary listeners, we actually need to call remove,
         # which may modify the underlying OS polling objects.
@@ -356,18 +357,16 @@ class Hub(HubSkeleton):
         if fd is None or fd[0] != FILE:
             return
 
-        if not listener.spent:
-            evtype = listener.evtype
-            sec = self.secondaries[evtype].get(fileno)
-            if not sec:
-                fd[1].pop(evtype, None)
-            else:
+        fd[1].pop(listener.evtype, None)
+        if not listener.spent and not self.g_prevent_multiple_readers:
+            sec = self.secondaries[listener.evtype].get(fileno)
+            if sec:
                 # migrate a secondary listener to be the primary listener
-                fd[1][evtype] = sec.pop(0)
-                if not sec:
-                    del self.secondaries[evtype][fileno]
+                fd[1][listener.evtype] = sec.pop(0)
+            if not sec:
+                del self.secondaries[listener.evtype][fileno]
 
-        if not fd[1]:
+        if not fd[1] or listener.spent:
             del self.fds[fileno]
             try:
                 self.poll.unregister(fileno)
@@ -389,17 +388,20 @@ class Hub(HubSkeleton):
     def remove_descriptor(self, fileno):
         """ Completely remove all listeners for this fileno.  For internal use
         only."""
-        fd = self.fds.pop(fileno, None)
-        if fd is None:
+        fd = self.fds.get(fileno, None)
+        if fd is None or fd[0] != FILE:
             return
-        for l in [fd[1][evtype] for evtype in fd[1]] if fd is not None else [] \
-                + self.secondaries[READ].pop(fileno, []) \
-                + self.secondaries[WRITE].pop(fileno, []):
-            try:
+        del self.fds[fileno]
+
+        try:
+            listeners = [fd[1][evtype] for evtype in fd[1]]
+            if not self.g_prevent_multiple_readers:
+                listeners += self.secondaries[READ].pop(fileno, []) + self.secondaries[WRITE].pop(fileno, [])
+            for l in listeners:
                 l.cb(fileno)
-            except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
+        except:
+            self.squelch_exception(fileno, sys.exc_info())
+            clear_sys_exc_info()
         try:
             self.poll.unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
