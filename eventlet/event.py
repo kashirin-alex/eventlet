@@ -116,9 +116,8 @@ class Event(object):
         current = greenlet.getcurrent()
         if self._result is NOT_USED:
             self._waiters.insert(0, current)
-            timer = None
-            if timeout is not None:
-                timer = active_hub.inst.schedule_call_local(timeout, do_send, None, None, current)
+            timer = None if timeout is None else active_hub.inst.schedule_call_local(timeout, current.switch)
+
             result = active_hub.inst.switch()
             if timer is not None:
                 timer.cancel()
@@ -129,6 +128,7 @@ class Event(object):
         if self._exc is not None:
             current.throw(*self._exc)
         return self._result
+        #
 
     def send(self, result=None, exc=None):
         """Makes arrangements for the waiters to be woken with the
@@ -158,15 +158,16 @@ class Event(object):
         Use :meth:`reset` between :meth:`send` s to reuse an event object.
         """
         assert self._result is NOT_USED, 'Trying to re-send() an already-triggered event.'
+
         # _result & _exc are for a new waiter call(wait) after send
         self._result = result
         if exc is not None:
-            if not isinstance(exc, tuple):
-                exc = (exc, )
-            self._exc = exc
+            self._exc = (exc,) if not isinstance(exc, tuple) else exc
+
         schedule_call_global = active_hub.inst.schedule_call_global
         while self._waiters:
             schedule_call_global(0, do_send, result, exc, self._waiters.pop())
+        #
 
     def send_exception(self, *args):
         """Same as :meth:`send`, but sends an exception to waiters.
@@ -213,7 +214,6 @@ class Event(object):
 
 
 def do_send(result, exc, waiter):
-    if exc is None:
-        waiter.switch(result)
-        return
-    waiter.throw(*exc)
+    waiter.switch(result) if exc is None else waiter.throw(*exc)
+    #
+
