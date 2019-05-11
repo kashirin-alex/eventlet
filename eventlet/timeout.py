@@ -44,36 +44,34 @@ class Timeout(BaseException):
     still raised, but the context manager suppresses it, so the code outside the
     with-block won't see it.
     """
+    __slots__ = ['seconds', 'exception', 'timer']
 
     def __init__(self, seconds=None, exception=None):
         self.seconds = seconds
         self.exception = exception
         self.timer = None
         self.start()
+        #
 
     def start(self):
         """Schedule the timeout.  This is called on construction, so
         it should not be called explicitly, unless the timer has been
         canceled."""
-        assert not self.pending, \
-            '%r is already started; to restart it, cancel it first' % self
-        if self.seconds is None:  # "fake" timeout (never expires)
-            self.timer = None
-        elif self.exception is None or isinstance(self.exception, bool):  # timeout that raises self
-            self.timer = active_hub.inst.schedule_call_global(
-                self.seconds, eventlet.getcurrent().throw, self)
-        else:  # regular timeout with user-provided exception
-            self.timer = active_hub.inst.schedule_call_global(
-                self.seconds, eventlet.getcurrent().throw, self.exception)
-        # return self # timer instance must be already available from where a call has been made
+        assert not self.pending, '%r is already started; to restart it, cancel it first' % self
+
+        # "fake" timeout (never expires) OR regular timeout with user-provided exception OR timeout that raises self
+        self.timer = None if self.seconds is None else \
+            active_hub.inst.schedule_call_global(
+                self.seconds, eventlet.getcurrent().throw,
+                self if self.exception is None or isinstance(self.exception, bool) else self.exception
+            )
+        #
 
     @property
     def pending(self):
         """True if the timeout is scheduled to be raised."""
-        if self.timer is not None:
-            return self.timer.pending
-        else:
-            return False
+        return self.timer.pending if self.timer is not None else False
+        #
 
     def cancel(self):
         """If the timeout is pending, cancel it.  If not using
@@ -152,13 +150,13 @@ def with_timeout(seconds, function, *args, **kwds):
 
 
 def wrap_is_timeout(base):
-    '''Adds `.is_timeout=True` attribute to objects returned by `base()`.
+    """Adds `.is_timeout=True` attribute to objects returned by `base()`.
 
     When `base` is class, attribute is added as read-only property. Returns `base`.
     Otherwise, it returns a function that sets attribute on result of `base()` call.
 
     Wrappers make best effort to be transparent.
-    '''
+    """
     if inspect.isclass(base):
         base.is_timeout = property(lambda _: True)
         return base
