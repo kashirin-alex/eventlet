@@ -30,36 +30,40 @@ class Timer(object):
         if _g_debug:
             self.traceback = six.StringIO()
             traceback.print_stack(file=self.traceback)
+        #
 
     @property
     def pending(self):
         return not self.called
+        #
 
     def __repr__(self):
         cb, args, kw = self.tpl if self.tpl is not None else (None, None, None)
-        retval = "Timer(%s, %s, *%s, **%s)" % (
-            self.seconds, cb, args, kw)
+        retval = "Timer(%s, %s, *%s, **%s)" % (self.seconds, cb, args, kw)
         if _g_debug and hasattr(self, 'traceback'):
             retval += '\n' + self.traceback.getvalue()
         return retval
+        #
 
     def copy(self):
-        cb, args, kw = self.tpl
-        return self.__class__(self.seconds, cb, *args, **kw)
+        return self.__class__(self.seconds, *self.tpl)
+        #
 
     def schedule(self):
-        """Schedule this timer to run in the current runloop.
-        """
+        """Schedule this timer to run in the current runloop."""
         self.called = False
         return hubs.active_hub.inst.add_timer(self)
+        #
 
     def __call__(self, *args):
         if self.called:
+            print ("WARN:(a called time) "+repr(self))  # a reason to switch out with current.throw
             return
         self.called = True
         cb, args, kw = self.tpl
         cb(*args, **kw)
         self.tpl = None
+        #
 
     def cancel(self):
         """Prevent this timer from being called. If the timer has already
@@ -67,14 +71,16 @@ class Timer(object):
         """
         if self.called:
             return
-        self.called = True
         hubs.active_hub.inst.timer_canceled(self)
+        self.called = True
         self.tpl = None
+        #
 
     # No default ordering in 3.x. heapq uses <
     # FIXME should full set be added?
     def __lt__(self, other):
         return id(self) < id(other)
+        #
 
 
 class LocalTimer(Timer):
@@ -83,27 +89,30 @@ class LocalTimer(Timer):
     def __init__(self, *args, **kwargs):
         super(LocalTimer, self).__init__(*args, **kwargs)
         self.greenlet = greenlet.getcurrent()
+        #
 
     @property
     def pending(self):
         if self.greenlet is None or self.greenlet.dead:
             return False
         return not self.called
+        #
 
     def __call__(self, *args):
         if self.called:
+            print ("WARN:(a called time) "+repr(self))  # a reason to switch out with current.throw
             return
         self.called = True
         if self.greenlet is not None and self.greenlet.dead:
             return
         cb, args, kw = self.tpl
         cb(*args, **kw)
-        self.tpl = None
-        self.greenlet = None
+        self.greenlet = self.tpl = None
+        #
 
     def cancel(self):
         if self.called:
             return
         self.called = True
-        self.tpl = None
-        self.greenlet = None
+        self.greenlet = self.tpl = None
+        #
