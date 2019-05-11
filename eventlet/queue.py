@@ -152,16 +152,14 @@ class LightQueue(object):
     """
 
     def __init__(self, maxsize=None):
-        if maxsize is None or maxsize < 0:  # None is not comparable in 3.x
-            self.maxsize = None
-        else:
-            self.maxsize = maxsize
+        # None is not comparable in 3.x
+        self.maxsize = None if maxsize is None or maxsize < 0 else maxsize
+
         self.getters = set()
         self.putters = set()
         self._event_unlock = None
         self._init(maxsize)
-
-    # QQQ make maxsize into a property with setter that schedules unlock if necessary
+        #
 
     def _init(self, maxsize):
         self.queue = collections.deque()
@@ -194,6 +192,7 @@ class LightQueue(object):
         """Return the size of the queue."""
         return len(self.queue)
 
+    # QQQ make maxsize into a property with setter that schedules unlock if necessary
     def resize(self, size):
         """Resizes the queue's maximum size.
 
@@ -249,8 +248,7 @@ class LightQueue(object):
                 getter = self.getters.pop()
                 if getter:
                     self._put(item)
-                    item = self._get()
-                    getter.switch(item)
+                    getter.switch(self._get())
                     return
             raise Full
         elif block:
@@ -344,11 +342,9 @@ class LightQueue(object):
                     getter = self.getters.pop()
                     if getter:
                         try:
-                            item = self._get()
+                            getter.switch(self._get())
                         except:
                             getter.throw(*sys.exc_info())
-                        else:
-                            getter.switch(item)
                 elif self.putters and self.getters:
                     putter = self.putters.pop()
                     if putter:
@@ -358,8 +354,7 @@ class LightQueue(object):
                             # this makes greenlet calling put() not to call _put() again
                             putter.item = _NONE
                             self._put(item)
-                            item = self._get()
-                            getter.switch(item)
+                            getter.switch(self._get())
                             putter.switch(putter)
                         else:
                             self.putters.add(putter)
@@ -374,8 +369,7 @@ class LightQueue(object):
                         break
                     for putter in full:
                         self.putters.discard(putter)
-                        schedule_call_global(
-                            0, putter.greenlet.throw, Full)
+                        schedule_call_global(0, putter.greenlet.throw, Full)
                 else:
                     break
         finally:
