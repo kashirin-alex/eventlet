@@ -65,10 +65,10 @@ class FdListener(object):
         self.evtype, self.fileno, self.cb, self.tb, self.mark_as_closed = args
         self.spent = False
         self.greenlet = eventlet.getcurrent()
+        #
 
     def __repr__(self):
-        return "%s(%r, %r, %r, %r, %r)" % (type(self).__name__, self.evtype, self.fileno, self.spent,
-                                           self.cb, self.tb)
+        return "%s(%r, %r, %r, %r, %r)" % (type(self).__name__, self.evtype, self.fileno, self.spent, self.cb, self.tb)
     __str__ = __repr__
 
     def defang(self):
@@ -149,15 +149,14 @@ class HubSkeleton(object):
         if not self.greenlet.dead:
             return
         # create new greenlet sharing same parent as original
-        new = support.greenlets.greenlet(self.run, self.greenlet.parent)
+        #
         # need to assign as parent of old greenlet
         # for those greenlets that are currently
         # children of the dead hub and may subsequently
         # exit without further switching to hub.
         # - waiting_thread will continue to add fd events to the listeners_events
         # or start new Thread depends on the state of self.events_waiter with the new greenlet
-        self.greenlet.parent = new
-        self.greenlet = new
+        self.greenlet = self.greenlet.parent = support.greenlets.greenlet(self.run, self.greenlet.parent)
         self.greenlet_switch = self.greenlet.switch
         #
 
