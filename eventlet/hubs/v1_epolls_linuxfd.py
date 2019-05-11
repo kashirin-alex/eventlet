@@ -188,8 +188,6 @@ class Hub(HubSkeleton):
             immediate = timers_immediate[:]  # copy current and exec without new to come
             del timers_immediate[:]
             for t in immediate:
-                if t.called:
-                    continue
                 try:
                     t()  # exec immediate timer
                 except:
