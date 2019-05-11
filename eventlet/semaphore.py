@@ -139,13 +139,10 @@ class Semaphore(object):
         ignored
         """
         self.counter += 1
-        if self._waiters:
-            active_hub.inst.schedule_call_global(0, self._do_acquire)
-        return True
-
-    def _do_acquire(self):
         if self._waiters and self.counter > 0:
-            self._waiters.popleft().switch()
+            active_hub.inst.schedule_call_global(0, self._waiters.popleft().switch)
+        return True
+        #
 
     def __exit__(self, typ, val, tb):
         self.release()
