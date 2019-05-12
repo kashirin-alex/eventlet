@@ -57,7 +57,7 @@ class Timer(object):
 
     def __call__(self, *args):
         if self.called:
-            print ("WARN:(a called time) "+repr(self))  # a reason to switch out with current.throw
+            print ("WARN:(a called time) "+repr(self))
             return
         self.called = True
         cb, args, kw = self.tpl
@@ -100,7 +100,7 @@ class LocalTimer(Timer):
 
     def __call__(self, *args):
         if self.called:
-            print ("WARN:(a called time) "+repr(self))  # a reason to switch out with current.throw
+            print ("WARN:(a called time) "+"Local"+repr(self))
             return
         self.called = True
         if self.greenlet is not None and self.greenlet.dead:
@@ -113,6 +113,7 @@ class LocalTimer(Timer):
     def cancel(self):
         if self.called:
             return
+        hubs.active_hub.inst.timer_canceled(self)
         self.called = True
         self.greenlet = self.tpl = None
         #
