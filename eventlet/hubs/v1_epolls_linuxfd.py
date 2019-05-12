@@ -210,8 +210,9 @@ class Hub(HubSkeleton):
             print (e, get_errno(e))
             return True
 
-        for f, ev, desc in [(f, ev, self.fds[f]) for f, ev in events if f in self.fds]:
-            if f not in self.fds:  # fd no longer in map
+        get_fd = self.fds.get
+        for f, ev, desc in [(f, ev, get_fd(f)) for f, ev in events]:  # events apply to current fd's desc
+            if desc is None or f not in self.fds:  # fd no longer in map
                 continue
 
             typ, details = desc
