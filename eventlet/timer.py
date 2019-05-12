@@ -71,8 +71,8 @@ class Timer(object):
         """
         if self.called:
             return
-        hubs.active_hub.inst.timer_canceled(self)
         self.called = True
+        hubs.active_hub.inst.timer_canceled(self)
         self.tpl = None
         #
 
@@ -113,7 +113,7 @@ class LocalTimer(Timer):
     def cancel(self):
         if self.called:
             return
-        hubs.active_hub.inst.timer_canceled(self)
         self.called = True
+        hubs.active_hub.inst.timer_canceled(self)
         self.greenlet = self.tpl = None
         #
