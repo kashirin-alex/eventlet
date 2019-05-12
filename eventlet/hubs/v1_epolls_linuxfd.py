@@ -364,7 +364,7 @@ class Hub(HubSkeleton):
             if not sec:
                 del self.secondaries[listener.evtype][fileno]
 
-        if not fd[1] or listener.spent:
+        if not fd[1]:
             del self.fds[fileno]
             try:
                 self.poll.unregister(fileno)
@@ -391,15 +391,15 @@ class Hub(HubSkeleton):
             return
         del self.fds[fileno]
 
-        try:
-            listeners = [fd[1][evtype] for evtype in fd[1]]
-            if not self.g_prevent_multiple_readers:
-                listeners += self.secondaries[READ].pop(fileno, []) + self.secondaries[WRITE].pop(fileno, [])
-            for l in listeners:
+        listeners = [fd[1][evtype] for evtype in fd[1]]
+        if not self.g_prevent_multiple_readers:
+            listeners += self.secondaries[READ].pop(fileno, []) + self.secondaries[WRITE].pop(fileno, [])
+        for l in listeners:
+            try:
                 l.cb(fileno)
-        except:
-            self.squelch_exception(fileno, sys.exc_info())
-            clear_sys_exc_info()
+            except:
+                self.squelch_exception(fileno, sys.exc_info())
+                clear_sys_exc_info()
         try:
             self.poll.unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
