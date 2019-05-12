@@ -23,7 +23,7 @@
 import functools
 import inspect
 
-import eventlet
+from eventlet import getcurrent
 from eventlet.hubs import active_hub
 
 __all__ = ['Timeout', 'with_timeout', 'wrap_is_timeout', 'is_timeout']
@@ -62,7 +62,7 @@ class Timeout(BaseException):
         # "fake" timeout (never expires) OR regular timeout with user-provided exception OR timeout that raises self
         self.timer = None if self.seconds is None else \
             active_hub.inst.schedule_call_global(
-                self.seconds, eventlet.getcurrent().throw,
+                self.seconds, getcurrent().throw,
                 self if self.exception is None or isinstance(self.exception, bool) else self.exception
             )
         #
