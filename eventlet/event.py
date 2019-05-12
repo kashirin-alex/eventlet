@@ -116,7 +116,7 @@ class Event(object):
         current = greenlet.getcurrent()
         if self._result is NOT_USED:
             self._waiters.insert(0, current)
-            timer = None if timeout is None else active_hub.inst.schedule_call_local(timeout, current.switch)
+            timer = None if timeout is None else active_hub.inst.schedule_call_local(timeout, current.switch, None)
 
             result = active_hub.inst.switch()
             if timer is not None:
