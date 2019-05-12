@@ -231,15 +231,15 @@ class Hub(HubSkeleton):
 
             if typ == TIMER:
                 try:
+                    del self.fds[f]
                     self.poll.unregister(f)
                     os.close(f)  # release resources first
                 except:
                     pass
                 try:
-                    del self.fds[f]
                     details()  # exec timer
                 except:
-                    pass
+                    print traceback.format_exc()
                 continue
 
             if typ == FILE:
