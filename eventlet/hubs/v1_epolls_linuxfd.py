@@ -210,9 +210,8 @@ class Hub(HubSkeleton):
             print (e, get_errno(e))
             return True
 
-        get_fd = self.fds.get
-        for desc, ev in [(get_fd(f), ev) for f, ev in events]:
-            if desc is None:  # print ('poll has unknown fileno', f)
+        for f, ev, desc in [(f, ev, self.fds[f]) for f, ev in events if f in self.fds]:
+            if f not in self.fds:  # fd no longer in map
                 continue
 
             typ, details = desc
