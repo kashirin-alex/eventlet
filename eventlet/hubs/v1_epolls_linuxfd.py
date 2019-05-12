@@ -211,8 +211,7 @@ class Hub(HubSkeleton):
             return True
 
         get_fd = self.fds.get
-        for f, ev in events:
-            desc = get_fd(f)
+        for desc, ev in [(get_fd(f), ev) for f, ev in events]:
             if desc is None:  # print ('poll has unknown fileno', f)
                 continue
 
