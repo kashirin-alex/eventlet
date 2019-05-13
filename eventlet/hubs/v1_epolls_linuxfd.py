@@ -244,13 +244,9 @@ class Hub(HubSkeleton):
             if typ == FILE:
                 try:
                     if ev & READ_MASK:
-                        l = details.get(READ)
-                        if l:
-                            l()
+                        details.get(READ, none_cb)()
                     if ev & WRITE_MASK:
-                        l = details.get(WRITE)
-                        if l:
-                            l()
+                        details.get(WRITE, none_cb)()
                 except SYSTEM_EXCEPTIONS:
                     continue
                 except:
@@ -390,22 +386,23 @@ class Hub(HubSkeleton):
         #
 
     def remove_descriptor(self, fileno):
-        """ Completely remove all listeners for this fileno.  For internal use
-        only."""
+        """ Completely remove all listeners for this fileno.  For internal use only."""
+
         fd = self.fds.get(fileno, None)
         if fd is None or fd[0] != FILE:
             return
         del self.fds[fileno]
 
-        listeners = [fd[1][evtype] for evtype in fd[1]]
+        listeners = fd[1].values()
         if not self.g_prevent_multiple_readers:
             listeners += self.secondaries[READ].pop(fileno, []) + self.secondaries[WRITE].pop(fileno, [])
+
         for l in listeners:
             try:
-                l.cb(fileno)
+                l()
             except:
-                self.squelch_exception(fileno, sys.exc_info())
-                clear_sys_exc_info()
+                pass
+
         try:
             self.poll.unregister(fileno)
         except (KeyError, ValueError, IOError, OSError):
@@ -413,3 +410,7 @@ class Hub(HubSkeleton):
             # already removed/invalid
             pass
         #
+
+
+def none_cb():
+    pass
