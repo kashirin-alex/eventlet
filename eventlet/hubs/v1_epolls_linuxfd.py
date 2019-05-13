@@ -172,8 +172,12 @@ class Hub(HubSkeleton):
 
     def execute_polling(self):
 
-        timers_immediate = self.timers_immediate
+        while self.closed:  # Ditch all closed fds first.
+            l = self.closed.pop(0)
+            if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
+                l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
 
+        timers_immediate = self.timers_immediate
         if timers_immediate:
             immediate = timers_immediate[:]  # copy current and exec without new to come
             del timers_immediate[:]
@@ -182,7 +186,6 @@ class Hub(HubSkeleton):
                     t()  # exec immediate timer
                 except:
                     pass
-
         try:
             events = self.poll.poll(0 if timers_immediate else -1)
         except ValueError:
@@ -201,7 +204,7 @@ class Hub(HubSkeleton):
 
         get_fd = self.fds.get
         for f, ev, desc in [(f, ev, get_fd(f)) for f, ev in events]:  # events apply to current fd's desc
-            if desc is None or f not in self.fds:  # fd no longer in map
+            if desc is None:  # fd no longer in map (or f not in self.fds)
                 continue
 
             typ, details = desc
@@ -245,11 +248,6 @@ class Hub(HubSkeleton):
                 if ev & CLOSED_MASK or ev & EPOLLRDHUP:
                     self._obsolete(f)
                 continue
-
-        while self.closed:  # Ditch all closed fds first.
-            l = self.closed.pop(0)
-            if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
-                l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
         return True
         #
 
