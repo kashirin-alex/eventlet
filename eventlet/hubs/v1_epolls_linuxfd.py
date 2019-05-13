@@ -332,21 +332,9 @@ class Hub(HubSkeleton):
     def remove(self, listener):
         fileno = listener.fileno
         fd = self.fds.get(fileno)
-        if fd is None:
-            return
-        typ, details = fd
-        if typ != FILE:
+        if fd is None or fd[0] != FILE:
             return
 
-        details.clear() if listener.spent else details.remove(listener, listener.evtype == READ)
-
-        if not details:
-            del self.fds[fileno]
-            try:
-                self.poll.unregister(fileno)
-            except:
-                pass
-            return
-
-        self.modify(fileno, details)
+        fd[1].remove(listener, listener.evtype == READ)
+        self.modify(fileno, fd[1])
         #
