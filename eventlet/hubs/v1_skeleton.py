@@ -82,6 +82,58 @@ class FdListener(object):
         self.spent = True
 
 
+class HubFileDetails(object):
+    """ HubFileDetails class for keeping a fileno listeners - readers+writers"""
+
+    __slots__ = ['rs', 'ws']
+
+    def __init__(self, listener, a_reader):
+        self.rs = [listener] if a_reader else []
+        self.ws = [listener] if not a_reader else []
+        #
+
+    def add(self, listener, a_reader, prevent_multiple):
+        l = self.rs if a_reader else self.ws
+
+        if l and prevent_multiple:
+            raise RuntimeError(
+                "Second simultaneous %s on fileno %s "
+                "detected.  Unless you really know what you're doing, "
+                "make sure that only one greenthread can %s any "
+                "particular socket.  Consider using a pools.Pool. "
+                "If you do know what you're doing and want to disable "
+                "this error, call "
+                "eventlet.debug.hub_prevent_multiple_readers(False) - MY THREAD=%s; "
+                "THAT THREAD=%s" % (listener.evtype, listener.fileno, listener.evtype, listener.cb, listener))
+        l.append(listener)
+        #
+
+    def remove(self, listener, a_reader):
+        (self.rs if a_reader else self.ws).remove(listener)
+        #
+
+    def clear(self):
+        del self.rs[:]
+        del self.ws[:]
+        #
+
+    def __nonzero__(self):
+        return bool(self.rs) or bool(self.ws)
+        #
+    __bool__ = __nonzero__
+
+    def __len__(self):
+        return len(self.rs)+len(self.ws)
+        #
+
+    def __iter__(self):
+        for l in self.rs:
+            yield l
+        for l in self.ws:
+            yield l
+        #
+
+
 # in debug mode, track the call site that created the listener
 
 class DebugListener(FdListener):
