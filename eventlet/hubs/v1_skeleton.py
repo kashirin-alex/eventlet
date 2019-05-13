@@ -109,7 +109,10 @@ class HubFileDetails(object):
         #
 
     def remove(self, listener, a_reader):
-        (self.rs if a_reader else self.ws).remove(listener)
+        try:
+            (self.rs if a_reader else self.ws).remove(listener)
+        except:
+            pass
         #
 
     def clear(self):
