@@ -252,11 +252,11 @@ class Hub(HubSkeleton):
                 except:
                     self.squelch_exception(f, sys.exc_info())
                     clear_sys_exc_info()
-                else:
-                    if ev & CLOSED_MASK:
-                        self.remove_descriptor(f)
-                    elif ev & EPOLLRDHUP:
-                        self._obsolete(f)
+                    continue
+                if ev & CLOSED_MASK:
+                    self.remove_descriptor(f)
+                elif ev & EPOLLRDHUP:
+                    self._obsolete(f)
                 continue
 
         while self.closed:  # Ditch all closed fds first.
