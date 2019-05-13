@@ -108,12 +108,10 @@ use_hub = HubHolder.use_hub  # intermediate ref
 
 
 # Lame middle file import because complex dependencies in import graph
-from eventlet import timeout
+from eventlet.timeout import Timeout
 
 
-def trampoline(fd, read=None, write=None, timeout=None,
-               timeout_exc=timeout.Timeout,
-               mark_as_closed=None):
+def trampoline(fd, read=None, write=None, seconds=None, timeout_exc=Timeout, mark_as_closed=None):
     """Suspend the current coroutine until the given socket object or file
     descriptor is ready to *read*, ready to *write*, or the specified
     *timeout* elapses, depending on arguments specified.
@@ -134,17 +132,15 @@ def trampoline(fd, read=None, write=None, timeout=None,
     current = greenlet.getcurrent()
     assert hub.greenlet is not current, 'do not call blocking functions from the mainloop'
 
-    if timeout is not None:
-        # def _timeout(exc):
-        #   This is only useful to insert debugging
-        #    current.throw(exc)
-        t = hub.schedule_call_global(timeout, current.throw, timeout_exc)
-    else:
-        t = None
+    # def _timeout(exc):
+    #   This is only useful to insert debugging
+    #    current.throw(exc)
+    t = None if seconds is None else hub.schedule_call_global(seconds, current.throw, timeout_exc)
     try:
         fileno = fd.fileno()
     except AttributeError:
         fileno = fd
+
     listener = hub.add(hub.WRITE if write else hub.READ,
                        fileno, current.switch, current.throw, mark_as_closed)
     try:
@@ -155,6 +151,7 @@ def trampoline(fd, read=None, write=None, timeout=None,
     finally:
         if t is not None:
             t.cancel()
+    #
 
 
 def notify_close(fd):
