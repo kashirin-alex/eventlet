@@ -67,6 +67,10 @@ class FdListener(object):
         self.greenlet = eventlet.getcurrent()
         #
 
+    def __call__(self):
+        self.cb(self.fileno)
+        #
+
     def __repr__(self):
         return "%s(%r, %r, %r, %r, %r)" % (type(self).__name__, self.evtype, self.fileno, self.spent, self.cb, self.tb)
     __str__ = __repr__
