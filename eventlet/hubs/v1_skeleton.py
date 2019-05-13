@@ -89,7 +89,7 @@ class HubFileDetails(object):
 
     def __init__(self, listener, a_reader):
         self.rs = [listener] if a_reader else []
-        self.ws = [listener] if not a_reader else []
+        self.ws = [] if a_reader else [listener]
         #
 
     def add(self, listener, a_reader, prevent_multiple):
