@@ -238,24 +238,29 @@ class Hub(HubSkeleton):
                 try:
                     details()  # exec timer
                 except:
-                    print traceback.format_exc()
+                    pass
                 continue
 
             if typ == FILE:
                 try:
-                    if ev & READ_MASK and READ in details:
-                        details[READ].cb(f)
-                    if ev & WRITE_MASK and WRITE in details:
-                        details[WRITE].cb(f)
-                        if ev & EPOLLRDHUP:
-                            self._obsolete(f)
-                    if ev & CLOSED_MASK:
-                        self.remove_descriptor(f)
+                    if ev & READ_MASK:
+                        l = details.get(READ)
+                        if l:
+                            l()
+                    if ev & WRITE_MASK:
+                        l = details.get(WRITE)
+                        if l:
+                            l()
                 except SYSTEM_EXCEPTIONS:
                     continue
                 except:
                     self.squelch_exception(f, sys.exc_info())
                     clear_sys_exc_info()
+                else:
+                    if ev & CLOSED_MASK:
+                        self.remove_descriptor(f)
+                    elif ev & EPOLLRDHUP:
+                        self._obsolete(f)
                 continue
 
         while self.closed:  # Ditch all closed fds first.
