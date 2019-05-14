@@ -180,6 +180,8 @@ class Hub(HubSkeleton):
                     pass
         try:
             events = self.poll.poll(0 if timers_immediate else -1)
+            if not events:
+                return True
         except ValueError:
             if not self.stopping:
                 try:
@@ -199,42 +201,45 @@ class Hub(HubSkeleton):
         # a FD can be cancelled and a new created with the same filno which can't be on the current evs poll
 
         fds = self.fds
-        for f, ev, details in [(f, ev, fds.get(f)) for f, ev in events if f in fds]:
-            try:
-                if ev & READ_MASK and details.rs:
-                    details.rs[0]()
-                if ev & WRITE_MASK and details.ws:
-                    details.ws[0]()
-            except SYSTEM_EXCEPTIONS:
-                continue
-            except:
-                self.squelch_exception(f, sys.exc_info())
-                clear_sys_exc_info()
-                continue
-            if ev & CLOSED_MASK or ev & EPOLLRDHUP:
-                self._obsolete(f)
+        if fds:
+            for f, ev, details in [(f, ev, fds.get(f)) for f, ev in events if f in fds]:
+                try:
+                    if ev & READ_MASK and details.rs:
+                        details.rs[0]()
+                    if ev & WRITE_MASK and details.ws:
+                        details.ws[0]()
+                except SYSTEM_EXCEPTIONS:
+                    continue
+                except:
+                    self.squelch_exception(f, sys.exc_info())
+                    clear_sys_exc_info()
+                    continue
+                if ev & CLOSED_MASK or ev & EPOLLRDHUP:
+                    self._obsolete(f)
             #
 
         fd_events = self.fd_events
-        for f, cb in [(f, fd_events.get(f)) for f, ev in events if f in fd_events]:
-            try:
-                cb(int(eventfd_read(f)))
-            except OSError as e:
-                if get_errno(e) == errno.EBADF:
-                    cb(-1)  # recreate handler?
-            # except io.BlockingIOError: -- write is not done with switch
-            #    pass  # value is above/below int64
-            except:
-                pass
+        if fd_events:
+            for f, cb in [(f, fd_events.get(f)) for f, ev in events if f in fd_events]:
+                try:
+                    cb(int(eventfd_read(f)))
+                except OSError as e:
+                    if get_errno(e) == errno.EBADF:
+                        cb(-1)  # recreate handler?
+                # except io.BlockingIOError: -- write is not done with switch
+                #    pass  # value is above/below int64
+                except:
+                    pass
             #
 
         fd_timers = self.fd_timers
-        for t in [fd_timers.get(f) for f, ev in events if f in fd_timers]:
-            try:
-                self.timer_canceled(t)
-                t()
-            except:
-                pass
+        if fd_timers:
+            for t in [fd_timers.get(f) for f, ev in events if f in fd_timers]:
+                try:
+                    self.timer_canceled(t)
+                    t()
+                except:
+                    pass
             #
 
         return True
