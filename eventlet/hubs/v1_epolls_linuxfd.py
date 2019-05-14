@@ -16,15 +16,10 @@ def is_available():
     return hasattr(select, 'epoll')
 
 SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
-# FD-TYPES:
-FILE = 0
-TIMER = 1
-EVENT = 2
 
 # FILE-FD DETAILS:
 READ = 0
 WRITE = 1
-EVENT_TYPES = (READ, WRITE)
 
 EPOLLRDHUP = 0x2000
 CLOSED_MASK = select.POLLNVAL
@@ -35,7 +30,6 @@ WRITE_MASK = select.EPOLLOUT | EXC_MASK | EPOLLRDHUP
 
 # TIMER-FD DETAILS:
 MIN_TIMER = 0.000000001
-
 TIMER_MASK = select.EPOLLIN | select.EPOLLONESHOT
 
 TIMER_CLOCK = timerfd_c.CLOCK_MONOTONIC
@@ -51,21 +45,20 @@ EV_READ_MASK = select.EPOLLIN | select.EPOLLPRI
 
 
 class Hub(HubSkeleton):
+    __slots__ = HubSkeleton.__slots__ + \
+                ['fds', 'closed', 'fd_events', 'fd_timers', 'timers_immediate', 'poll', 'poll_backing']
     WRITE = WRITE
     READ = READ
 
     def __init__(self, clock=None):
         super(Hub, self).__init__(clock)
 
-        self.fds = {}
-        # fds map, fileno: tuple(fd-type, type-dependent)
-        #                        FILE   , HubFileDetails-obj
-        #                        TIMER  , timer-obj
-        #                        EVENT  , callback
-        self.closed = []
+        self.fds = {}        # HubFileDetails
+        self.closed = []     # FdListener
 
-        self.timers_immediate = []
-        self.add_immediate_timer = self.timers_immediate.append
+        self.fd_events = {}  # timer-obj
+        self.fd_timers = {}  # callback
+        self.timers_immediate = []  # timer-obj
 
         self.poll = select.epoll()
         self.poll_backing = select.epoll.fromfd(os.dup(self.poll.fileno()))
@@ -74,17 +67,17 @@ class Hub(HubSkeleton):
     def add_timer(self, timer):
         seconds = timer.seconds
         if seconds < MIN_TIMER:
-            self.add_immediate_timer(timer)
+            self.timers_immediate.append(timer)
             return timer
 
         fileno = int(timerfd_create(TIMER_CLOCK, TIMER_FLAGS))
         timer.fileno = fileno
-        self.fds[fileno] = (TIMER, timer)
+        self.fd_timers[fileno] = timer
         try:
             self.poll.register(fileno, TIMER_MASK)
         except:
             # delayed in registering followed expired and closed timer fd
-            del self.fds[fileno]
+            self.timer_canceled(timer)
             timer.seconds = 0  # pass-through
             return self.add_timer(timer)  # really bad, if can't make a timer
         # zero and below 1 ns disarms a timer
@@ -94,10 +87,8 @@ class Hub(HubSkeleton):
 
     def timer_canceled(self, timer):
         fileno = timer.fileno
-        fd = self.fds.get(fileno)
-        if fd is None or fd[0] != TIMER:
+        if self.fd_timers.pop(fileno, None) is None:
             return
-        del self.fds[fileno]
         try:
             timerfd_settime(fileno, 0, 0, 0)
             self.poll.unregister(fileno)
@@ -108,16 +99,18 @@ class Hub(HubSkeleton):
 
     def event_add(self, cb, semaphore=True):
         fileno = int(eventfd_create(0, EV_FLAGS if semaphore else eventfd_c.EFD_NONBLOCK))
-        self.fds[fileno] = (EVENT, cb)
-        self.poll.register(fileno, EV_READ_MASK)
+        self.fd_events[fileno] = cb
+        try:
+            self.poll.register(fileno, EV_READ_MASK)
+        except Exception as e:
+            self.event_close(fileno)
+            raise e
         return fileno
         #
 
     def event_close(self, fileno):
-        fd = self.fds.get(fileno)
-        if fd is None or fd[0] != EVENT:
+        if self.fd_events.pop(fileno, None) is None:
             return
-        del self.fds[fileno]
         try:
             self.poll.unregister(fileno)
             os.close(fileno)
@@ -131,17 +124,16 @@ class Hub(HubSkeleton):
             Any current listeners must be defanged, and notifications to
             their greenlets queued up to send.
         """
-        fd = self.fds.get(fileno)
-        if fd is None or fd[0] != FILE:
+        fd = self.fds.pop(fileno, None)
+        if fd is None:
             return
 
-        del self.fds[fileno]
         try:
             self.poll.unregister(fileno)
         except:
             pass
 
-        for listener in fd[1]:
+        for listener in fd:
             self.closed.append(listener)
             listener.defang()
         #
@@ -202,52 +194,53 @@ class Hub(HubSkeleton):
             print (e, get_errno(e))
             return True
 
-        get_fd = self.fds.get
-        for f, ev, desc in [(f, ev, get_fd(f)) for f, ev in events]:  # events apply to current fd's desc
-            if desc is None:  # fd no longer in map (or f not in self.fds)
-                continue
+        # in-case any, separate events iterations for each type
 
-            typ, details = desc
-            if typ == EVENT:
-                try:
-                    details(int(eventfd_read(f)))
-                except OSError as e:
-                    if get_errno(e) == errno.EBADF:
-                        details(-1)  # recreate handler?
-                # except io.BlockingIOError: -- write is not done with switch
-                #    pass  # value is above/below int64
-                except:
-                    pass
+        for f, ev in events:
+            details = self.fds.get(f)
+            if not details:
                 continue
+            try:
+                if ev & READ_MASK and details.rs:
+                    details.rs[0]()
+                if ev & WRITE_MASK and details.ws:
+                    details.ws[0]()
+            except SYSTEM_EXCEPTIONS:
+                continue
+            except:
+                self.squelch_exception(f, sys.exc_info())
+                clear_sys_exc_info()
+                continue
+            if ev & CLOSED_MASK or ev & EPOLLRDHUP:
+                self._obsolete(f)
+            #
 
-            if typ == TIMER:
-                try:
-                    del self.fds[f]
-                    self.poll.unregister(f)
-                    os.close(f)  # release resources first
-                except:
-                    pass
-                try:
-                    details()  # exec timer
-                except:
-                    pass
+        for f, ev in events:
+            details = self.fd_timers.get(f)
+            if not details:
                 continue
+            try:
+                self.timer_canceled(details)
+                details()  # exec timer
+            except:
+                pass
+            #
 
-            if typ == FILE:
-                try:
-                    if ev & READ_MASK and details.rs:
-                        details.rs[0]()
-                    if ev & WRITE_MASK and details.ws:
-                        details.ws[0]()
-                except SYSTEM_EXCEPTIONS:
-                    continue
-                except:
-                    self.squelch_exception(f, sys.exc_info())
-                    clear_sys_exc_info()
-                    continue
-                if ev & CLOSED_MASK or ev & EPOLLRDHUP:
-                    self._obsolete(f)
+        for f, ev in events:
+            details = self.fd_events.get(f)
+            if not details:
                 continue
+            try:
+                details(int(eventfd_read(f)))
+            except OSError as e:
+                if get_errno(e) == errno.EBADF:
+                    details(-1)  # recreate handler?
+            # except io.BlockingIOError: -- write is not done with switch
+            #    pass  # value is above/below int64
+            except:
+                pass
+            #
+
         return True
         #
 
@@ -268,17 +261,12 @@ class Hub(HubSkeleton):
                 if not self.execute_polling():
                     break
         finally:
-            while self.fds:
-                fileno, fd = self.fds.popitem()
-                try:
-                    if fd[0] == TIMER:
-                        timerfd_settime(fileno, 0, 0, 0)
-                    self.poll.unregister(fileno)
-                    os.close(fileno)
-                except:
-                    pass
-            del self.closed[:]
+            while self.fd_timers:
+                self.timer_canceled(self.fd_timers.values()[0])
+            while self.fd_events:
+                self.event_close(self.fd_events.keys()[0])
 
+            del self.closed[:]
             self.poll.close()
             self.poll_backing.close()
             self.stopping = False
@@ -286,19 +274,19 @@ class Hub(HubSkeleton):
         #
 
     def get_readers(self):
-        return sum([len(self.fds[fileno][1].rs) for fileno in self.fds if self.fds[fileno][0] == FILE])
+        return sum([len(self.fds[fileno].rs) for fileno in self.fds])
         #
 
     def get_writers(self):
-        return sum([len(self.fds[fileno][1].ws) for fileno in self.fds if self.fds[fileno][0] == FILE])
+        return sum([len(self.fds[fileno].ws) for fileno in self.fds])
         #
 
     def get_timers_count(self):
-        return len([None for fileno in self.fds if self.fds[fileno][0] == TIMER])
+        return len(self.fd_timers)
         #
 
     def get_listeners_count(self):
-        return sum([len(self.fds[fileno][1]) for fileno in self.fds if self.fds[fileno][0] == FILE])
+        return sum([len(self.fds[fileno]) for fileno in self.fds])
         #
 
     def add(self, *args):
@@ -308,10 +296,10 @@ class Hub(HubSkeleton):
         listener = self.lclass(*args)
 
         if fd is not None:
-            fd[1].add(listener, evtype == READ, self.g_prevent_multiple_readers)
-            self.modify(fileno, fd[1])
+            fd.add(listener, evtype == READ, self.g_prevent_multiple_readers)
+            self.modify(fileno, fd)
         else:
-            self.fds[fileno] = (FILE, HubFileDetails(listener, evtype == READ))
+            self.fds[fileno] = HubFileDetails(listener, evtype == READ)
             self.poll.register(fileno, READ_MASK if evtype == READ else WRITE_MASK)
 
         return listener
@@ -330,9 +318,9 @@ class Hub(HubSkeleton):
     def remove(self, listener):
         fileno = listener.fileno
         fd = self.fds.get(fileno)
-        if fd is None or fd[0] != FILE:
+        if fd is None:
             return
 
-        fd[1].remove(listener, listener.evtype == READ)
-        self.modify(fileno, fd[1])
+        fd.remove(listener, listener.evtype == READ)
+        self.modify(fileno, fd)
         #
