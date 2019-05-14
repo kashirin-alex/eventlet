@@ -194,12 +194,12 @@ class Hub(HubSkeleton):
             print (e, get_errno(e))
             return True
 
-        # in-case any, separate events iterations for each type
+        # in any case, separate events iterations for each type
+        # use prior details,
+        # a FD can be cancelled and a new created with the same filno which can't be on the current evs poll
 
-        for f, ev in events:
-            details = self.fds.get(f)
-            if not details:
-                continue
+        fds = self.fds
+        for f, ev, details in [(f, ev, fds.get(f)) for f, ev in events if f in fds]:
             try:
                 if ev & READ_MASK and details.rs:
                     details.rs[0]()
@@ -215,28 +215,24 @@ class Hub(HubSkeleton):
                 self._obsolete(f)
             #
 
-        for f, ev in events:
-            details = self.fd_timers.get(f)
-            if not details:
-                continue
+        fd_events = self.fd_events
+        for f, cb in [(f, fd_events.get(f)) for f, ev in events if f in fd_events]:
             try:
-                self.timer_canceled(details)
-                details()  # exec timer
+                cb(int(eventfd_read(f)))
+            except OSError as e:
+                if get_errno(e) == errno.EBADF:
+                    cb(-1)  # recreate handler?
+            # except io.BlockingIOError: -- write is not done with switch
+            #    pass  # value is above/below int64
             except:
                 pass
             #
 
-        for f, ev in events:
-            details = self.fd_events.get(f)
-            if not details:
-                continue
+        fd_timers = self.fd_timers
+        for t in [fd_timers.get(f) for f, ev in events if f in fd_timers]:
             try:
-                details(int(eventfd_read(f)))
-            except OSError as e:
-                if get_errno(e) == errno.EBADF:
-                    details(-1)  # recreate handler?
-            # except io.BlockingIOError: -- write is not done with switch
-            #    pass  # value is above/below int64
+                self.timer_canceled(t)
+                t()
             except:
                 pass
             #
