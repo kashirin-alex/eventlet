@@ -161,6 +161,10 @@ class DebugListener(FdListener):
 class HubSkeleton(object):
     """ HubSkeleton class for easing the implementation of subclasses to greenlet, debug and Listener"""
 
+    __slots__ = ['clock', 'lclass', 'greenlet', 'greenlet_switch', 'stopping', 'running',
+                 'debug_exceptions', 'debug_blocking', 'debug_blocking_resolution', '_old_signal_handler',
+                 'g_prevent_multiple_readers']
+
     SYSTEM_EXCEPTIONS = (KeyboardInterrupt, SystemExit)
 
     def __init__(self, clock=None):
