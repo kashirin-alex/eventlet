@@ -24,7 +24,7 @@ WRITE = 1
 
 EPOLLRDHUP = 0x2000
 EXC_MASK = select.EPOLLERR | select.EPOLLHUP
-CLOSED_MASK = select.POLLNVAL | EXC_MASK | EPOLLRDHUP
+CLOSED_MASK = select.POLLNVAL | select.EPOLLERR | EPOLLRDHUP
 
 READ_MASK = select.EPOLLIN | select.EPOLLPRI | EXC_MASK
 WRITE_MASK = select.EPOLLOUT | EXC_MASK | EPOLLRDHUP
@@ -187,6 +187,7 @@ class Hub(HubSkeleton):
         fds = self.fds
         for f, ev, details in [(f, ev, fds.get(f)) for f, ev in events if f in fds]:
             try:
+                print (f, ev, details)
                 if ev & READ_MASK and details.rs:
                     details.rs[0]()
                 if ev & WRITE_MASK and details.ws:
