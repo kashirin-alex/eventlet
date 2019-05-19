@@ -24,7 +24,7 @@ WRITE = 1
 
 EPOLLRDHUP = 0x2000
 EXC_MASK = select.EPOLLERR | select.EPOLLHUP
-CLOSED_MASK = select.POLLNVAL | select.EPOLLERR | EPOLLRDHUP
+CLOSED_MASK = select.POLLNVAL | EPOLLRDHUP | EXC_MASK
 
 READ_MASK = select.EPOLLIN | select.EPOLLPRI | EXC_MASK
 WRITE_MASK = select.EPOLLOUT | EXC_MASK | EPOLLRDHUP
@@ -165,6 +165,7 @@ class Hub(HubSkeleton):
             events = self.poll.poll(0 if timers_immediate else -1)
             if not events or not self.fds:
                 if events and not self.fds:
+                    # that should not ever happen, else it is unregister &? close filno
                     print ('WARN', 'no fds map for', events)
                 return True
         except ValueError:
