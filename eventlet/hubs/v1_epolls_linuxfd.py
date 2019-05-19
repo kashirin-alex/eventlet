@@ -23,8 +23,8 @@ READ = 0
 WRITE = 1
 
 EPOLLRDHUP = 0x2000
-CLOSED_MASK = select.POLLNVAL
 EXC_MASK = select.EPOLLERR | select.EPOLLHUP
+CLOSED_MASK = select.POLLNVAL | EXC_MASK | EPOLLRDHUP
 
 READ_MASK = select.EPOLLIN | select.EPOLLPRI | EXC_MASK
 WRITE_MASK = select.EPOLLOUT | EXC_MASK | EPOLLRDHUP
@@ -197,7 +197,7 @@ class Hub(HubSkeleton):
                 self.squelch_exception(f, sys.exc_info())
                 clear_sys_exc_info()
                 continue
-            if ev & CLOSED_MASK or ev & EPOLLRDHUP:
+            if ev & CLOSED_MASK:
                 self._obsolete(f)
         return True
         #
