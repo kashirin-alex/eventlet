@@ -136,6 +136,14 @@ class HubFileDetails(object):
             yield l
         #
 
+    def __repr__(self):
+        return "%s \r\n readers: \r\n  %s \r\n writers: \r\n  %s \r\n" % \
+               (repr(self.__class__),
+                '\r\n  '.join([str(o) for o in self.rs]),
+                '\r\n  '.join([str(o) for o in self.ws]))
+        #
+    __str__ = __repr__
+
 
 # in debug mode, track the call site that created the listener
 
