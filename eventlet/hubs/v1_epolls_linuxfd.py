@@ -103,8 +103,8 @@ class Hub(HubSkeleton):
             Any current listeners must be defanged, and notifications to
             their greenlets queued up to send.
         """
-        fd = self.fds.pop(fileno, ())
-        if not fd:
+        fd = self.fds.pop(fileno, None)
+        if fd is None:
             return
 
         try:
@@ -255,12 +255,12 @@ class Hub(HubSkeleton):
         fd = self.fds.get(fileno)
         listener = self.lclass(*args)
 
-        if fd is not None:
-            fd.add(listener, evtype == READ, self.g_prevent_multiple_readers)
-            self.modify(fileno, fd)
-        else:
+        if fd is None:
             self.fds[fileno] = HubFileDetails(listener, evtype == READ)
             self.poll.register(fileno, READ_MASK if evtype == READ else WRITE_MASK)
+        else:
+            fd.add(listener, evtype == READ, self.g_prevent_multiple_readers)
+            self.modify(fileno, fd)
 
         return listener
         #
