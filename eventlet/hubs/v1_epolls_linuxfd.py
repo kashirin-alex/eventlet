@@ -103,8 +103,8 @@ class Hub(HubSkeleton):
             Any current listeners must be defanged, and notifications to
             their greenlets queued up to send.
         """
-        fd = self.fds.pop(fileno, None)
-        if fd is None:
+        fd = self.fds.pop(fileno, ())
+        if not fd:
             return
 
         try:
@@ -144,7 +144,8 @@ class Hub(HubSkeleton):
     def ditch_closed(self):
         while self.closed:  # Ditch all closed fds.
             l = self.closed.pop(0)
-            if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
+            if not hasattr(l, 'greenlet') or (l.greenlet and not l.greenlet.dead):
+                # There's no point signalling a greenlet that's already dead. and Timer has it's called state
                 l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
         #
 
@@ -163,6 +164,8 @@ class Hub(HubSkeleton):
         try:
             events = self.poll.poll(0 if timers_immediate else -1)
             if not events or not self.fds:
+                if events and not self.fds:
+                    print ('WARN', 'no fds map for', events)
                 return True
         except ValueError:
             if not self.stopping:
