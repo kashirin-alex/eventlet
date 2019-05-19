@@ -187,7 +187,6 @@ class Hub(HubSkeleton):
         fds = self.fds
         for f, ev, details in [(f, ev, fds.get(f)) for f, ev in events if f in fds]:
             try:
-                print (f, ev, details)
                 if ev & READ_MASK and details.rs:
                     details.rs[0]()
                 if ev & WRITE_MASK and details.ws:
