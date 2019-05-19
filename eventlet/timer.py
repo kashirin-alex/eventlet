@@ -62,7 +62,10 @@ class Timer(object):
         self.called = True
         hubs.active_hub.inst.timer_canceled(self)
         cb, args, kw = self.tpl
-        cb(*args, **kw)
+        try:
+            cb(*args, **kw)
+        except:
+            pass
         self.tpl = None
         #
     cb = tb = defang = __call__  # compatibility to hub-FdListener
@@ -109,7 +112,10 @@ class LocalTimer(Timer):
             return
         hubs.active_hub.inst.timer_canceled(self)
         cb, args, kw = self.tpl
-        cb(*args, **kw)
+        try:
+            cb(*args, **kw)
+        except:
+            pass
         self.greenlet = self.tpl = None
         #
 
