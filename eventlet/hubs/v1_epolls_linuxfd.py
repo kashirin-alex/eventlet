@@ -196,9 +196,6 @@ class Hub(HubSkeleton):
                 continue
             if ev & CLOSED_MASK or ev & EPOLLRDHUP:
                 self._obsolete(f)
-        #
-
-
         return True
         #
 
@@ -221,7 +218,7 @@ class Hub(HubSkeleton):
         finally:
 
             while self.fds:
-                self._obsolete(self.fds.values()[0])
+                self._obsolete(self.fds.keys()[0])
             self.ditch_closed()
 
             self.poll.close()
