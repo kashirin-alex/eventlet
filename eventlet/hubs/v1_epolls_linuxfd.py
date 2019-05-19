@@ -3,7 +3,7 @@ import os
 import sys
 import traceback
 
-from linuxfd import timerfd_c, eventfd_c
+from linuxfd import timerfd_c
 
 import eventlet
 from eventlet.support import clear_sys_exc_info, get_errno
@@ -14,6 +14,7 @@ select = eventlet.patcher.original('select')
 
 def is_available():
     return hasattr(select, 'epoll')
+
 
 SYSTEM_EXCEPTIONS = HubSkeleton.SYSTEM_EXCEPTIONS
 
@@ -30,23 +31,16 @@ WRITE_MASK = select.EPOLLOUT | EXC_MASK | EPOLLRDHUP
 
 # TIMER-FD DETAILS:
 MIN_TIMER = 0.000000001
-TIMER_MASK = select.EPOLLIN | select.EPOLLONESHOT
+TIMER_MASK = select.EPOLLIN | select.EPOLLONESHOT | EXC_MASK
 
 TIMER_CLOCK = timerfd_c.CLOCK_MONOTONIC
 TIMER_FLAGS = timerfd_c.TFD_NONBLOCK
 timerfd_create = timerfd_c.timerfd_create
 timerfd_settime = timerfd_c.timerfd_settime
 
-# EVENT-FD DETAILS:
-eventfd_create = eventfd_c.eventfd
-eventfd_read = eventfd_c.eventfd_read
-EV_FLAGS = eventfd_c.EFD_NONBLOCK | eventfd_c.EFD_SEMAPHORE
-EV_READ_MASK = select.EPOLLIN | select.EPOLLPRI
-
 
 class Hub(HubSkeleton):
-    __slots__ = HubSkeleton.__slots__ + \
-                ['fds', 'closed', 'fd_events', 'fd_timers', 'timers_immediate', 'poll', 'poll_backing']
+    __slots__ = HubSkeleton.__slots__ + ['fds', 'closed',  'timers_immediate', 'poll', 'poll_backing']
     WRITE = WRITE
     READ = READ
 
@@ -56,8 +50,6 @@ class Hub(HubSkeleton):
         self.fds = {}        # HubFileDetails
         self.closed = []     # FdListener
 
-        self.fd_events = {}  # timer-obj
-        self.fd_timers = {}  # callback
         self.timers_immediate = []  # timer-obj
 
         self.poll = select.epoll()
@@ -71,8 +63,10 @@ class Hub(HubSkeleton):
             return timer
 
         fileno = int(timerfd_create(TIMER_CLOCK, TIMER_FLAGS))
+        self._obsolete(fileno)
+
         timer.fileno = fileno
-        self.fd_timers[fileno] = timer
+        self.fds[fileno] = HubFileDetails(timer, True)
         try:
             self.poll.register(fileno, TIMER_MASK)
         except:
@@ -87,36 +81,21 @@ class Hub(HubSkeleton):
 
     def timer_canceled(self, timer):
         fileno = timer.fileno
-        if self.fd_timers.pop(fileno, None) is None:
+        fd = self.fds.pop(fileno, None)
+        if fd is None:
             return
+        try:
+            self.poll.unregister(fileno)
+        except:
+            pass
         try:
             timerfd_settime(fileno, 0, 0, 0)
-            self.poll.unregister(fileno)
+        except:
+            pass
+        try:
             os.close(fileno)
         except:
             pass
-        #
-
-    def event_add(self, cb, semaphore=True):
-        fileno = int(eventfd_create(0, EV_FLAGS if semaphore else eventfd_c.EFD_NONBLOCK))
-        self.fd_events[fileno] = cb
-        try:
-            self.poll.register(fileno, EV_READ_MASK)
-        except Exception as e:
-            self.event_close(fileno)
-            raise e
-        return fileno
-        #
-
-    def event_close(self, fileno):
-        if self.fd_events.pop(fileno, None) is None:
-            return
-        try:
-            self.poll.unregister(fileno)
-            os.close(fileno)
-        except:
-            pass
-        return True
         #
 
     def _obsolete(self, fileno):
@@ -162,12 +141,15 @@ class Hub(HubSkeleton):
             sys.stderr.flush()
         #
 
-    def execute_polling(self):
-
-        while self.closed:  # Ditch all closed fds first.
+    def ditch_closed(self):
+        while self.closed:  # Ditch all closed fds.
             l = self.closed.pop(0)
             if not l.greenlet.dead:  # There's no point signalling a greenlet that's already dead.
                 l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
+        #
+
+    def execute_polling(self):
+        self.ditch_closed()
 
         timers_immediate = self.timers_immediate
         if timers_immediate:
@@ -180,7 +162,7 @@ class Hub(HubSkeleton):
                     pass
         try:
             events = self.poll.poll(0 if timers_immediate else -1)
-            if not events:
+            if not events or not self.fds:
                 return True
         except ValueError:
             if not self.stopping:
@@ -196,51 +178,26 @@ class Hub(HubSkeleton):
             print (e, get_errno(e))
             return True
 
-        # in any case, separate events iterations for each type
         # use prior details,
         # a FD can be cancelled and a new created with the same filno which can't be on the current evs poll
 
         fds = self.fds
-        if fds:
-            for f, ev, details in [(f, ev, fds.get(f)) for f, ev in events if f in fds]:
-                try:
-                    if ev & READ_MASK and details.rs:
-                        details.rs[0]()
-                    if ev & WRITE_MASK and details.ws:
-                        details.ws[0]()
-                except SYSTEM_EXCEPTIONS:
-                    continue
-                except:
-                    self.squelch_exception(f, sys.exc_info())
-                    clear_sys_exc_info()
-                    continue
-                if ev & CLOSED_MASK or ev & EPOLLRDHUP:
-                    self._obsolete(f)
-            #
+        for f, ev, details in [(f, ev, fds.get(f)) for f, ev in events if f in fds]:
+            try:
+                if ev & READ_MASK and details.rs:
+                    details.rs[0]()
+                if ev & WRITE_MASK and details.ws:
+                    details.ws[0]()
+            except SYSTEM_EXCEPTIONS:
+                continue
+            except:
+                self.squelch_exception(f, sys.exc_info())
+                clear_sys_exc_info()
+                continue
+            if ev & CLOSED_MASK or ev & EPOLLRDHUP:
+                self._obsolete(f)
+        #
 
-        fd_events = self.fd_events
-        if fd_events:
-            for f, cb in [(f, fd_events.get(f)) for f, ev in events if f in fd_events]:
-                try:
-                    cb(int(eventfd_read(f)))
-                except OSError as e:
-                    if get_errno(e) == errno.EBADF:
-                        cb(-1)  # recreate handler?
-                # except io.BlockingIOError: -- write is not done with switch
-                #    pass  # value is above/below int64
-                except:
-                    pass
-            #
-
-        fd_timers = self.fd_timers
-        if fd_timers:
-            for t in [fd_timers.get(f) for f, ev in events if f in fd_timers]:
-                try:
-                    self.timer_canceled(t)
-                    t()
-                except:
-                    pass
-            #
 
         return True
         #
@@ -262,12 +219,11 @@ class Hub(HubSkeleton):
                 if not self.execute_polling():
                     break
         finally:
-            while self.fd_timers:
-                self.timer_canceled(self.fd_timers.values()[0])
-            while self.fd_events:
-                self.event_close(self.fd_events.keys()[0])
 
-            del self.closed[:]
+            while self.fds:
+                self._obsolete(self.fds.values()[0])
+            self.ditch_closed()
+
             self.poll.close()
             self.poll_backing.close()
             self.stopping = False
@@ -275,15 +231,18 @@ class Hub(HubSkeleton):
         #
 
     def get_readers(self):
-        return sum([len(self.fds[fileno].rs) for fileno in self.fds])
+        return sum([len(self.fds[fileno].rs) for fileno in self.fds
+                    if self.fds[fileno].rs and isinstance(self.fds[fileno].rs[0], self.lclass)])
         #
 
     def get_writers(self):
-        return sum([len(self.fds[fileno].ws) for fileno in self.fds])
+        return sum([len(self.fds[fileno].ws) for fileno in self.fds
+                    if self.fds[fileno].ws and isinstance(self.fds[fileno].ws[0], self.lclass)])
         #
 
     def get_timers_count(self):
-        return len(self.fd_timers)
+        return len([None for fileno in self.fds
+                    if self.fds[fileno].rs and not isinstance(self.fds[fileno].rs[0], self.lclass)])
         #
 
     def get_listeners_count(self):

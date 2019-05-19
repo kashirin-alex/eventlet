@@ -60,10 +60,12 @@ class Timer(object):
             print ("WARN:(a called time) "+repr(self))
             return
         self.called = True
+        hubs.active_hub.inst.timer_canceled(self)
         cb, args, kw = self.tpl
         cb(*args, **kw)
         self.tpl = None
         #
+    cb = tb = defang = __call__  # compatibility to hub-FdListener
 
     def cancel(self):
         """Prevent this timer from being called. If the timer has already
@@ -105,6 +107,7 @@ class LocalTimer(Timer):
         self.called = True
         if self.greenlet is not None and self.greenlet.dead:
             return
+        hubs.active_hub.inst.timer_canceled(self)
         cb, args, kw = self.tpl
         cb(*args, **kw)
         self.greenlet = self.tpl = None
