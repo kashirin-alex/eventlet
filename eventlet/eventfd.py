@@ -1,5 +1,4 @@
-from eventlet.hubs import active_hub
-from eventlet.support import greenlets as greenlet
+from eventlet.hubs import trampoline, notify_opened, notify_close
 import os
 
 from linuxfd import eventfd_c
@@ -13,16 +12,11 @@ EV_FLAGS = eventfd_c.EFD_NONBLOCK | eventfd_c.EFD_SEMAPHORE
 
 
 class EventFd(object):
-    __slots__ = ['_fd', '_current']
+    __slots__ = ['_fd']
 
     def __init__(self, semaphore=True):
-
-        fileno = int(eventfd_create(0, EV_FLAGS if semaphore else eventfd_c.EFD_NONBLOCK))
-
-        self._current = None
-        active_hub.inst.mark_as_reopened(fileno)
-        listener = active_hub.inst.add(active_hub.inst.READ, fileno, self.switch, self.throw, None)
-        self._fd = fileno
+        self._fd = int(eventfd_create(0, EV_FLAGS if semaphore else eventfd_c.EFD_NONBLOCK))
+        notify_opened(self._fd)
         #
 
     def fileno(self):
@@ -33,24 +27,17 @@ class EventFd(object):
         return os.dup(self._fd)
         #
 
-    def switch(self, *args):
-        return self._current.switch(*args)
-        #
-
-    def throw(self, *args):
-        return self._current.throw(*args)
-        #
-
     def receive(self):
-        self._current = greenlet.getcurrent()
-        assert active_hub.inst.greenlet is not self._current, 'do not call blocking functions from the mainloop'
-
-        active_hub.inst.switch()
+        trampoline(self._fd, read=True)
         return int(eventfd_read(self._fd))
         #
 
     def close(self):
-        return active_hub.inst.notify_close(self._fd)
+        notify_close(self._fd)
+        try:
+            os.close(self._fd)
+        except:
+            pass
         #
 
     @staticmethod
