@@ -331,6 +331,8 @@ class ResolverProxy(object):
             qname = '0.0.0.0'
         if isinstance(qname, six.string_types):
             qname = dns.name.from_text(qname, None)
+        if not qname.is_absolute():
+            qname = qname.concatenate(dns.name.root)
 
         def step(fun, *args, **kwargs):
             try:
