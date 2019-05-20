@@ -23,15 +23,15 @@ READ = 0
 WRITE = 1
 
 EPOLLRDHUP = 0x2000
-EXC_MASK = select.EPOLLERR | select.EPOLLHUP
-CLOSED_MASK = select.POLLNVAL | EPOLLRDHUP | EXC_MASK
+# EXC_MASK = select.EPOLLERR | select.EPOLLHUP | EPOLLRDHUP
+CLOSED_MASK = select.POLLNVAL | select.EPOLLERR
 
-READ_MASK = select.EPOLLIN | select.EPOLLPRI | EXC_MASK
-WRITE_MASK = select.EPOLLOUT | EXC_MASK | EPOLLRDHUP
+READ_MASK = select.EPOLLIN | select.EPOLLPRI | select.EPOLLHUP
+WRITE_MASK = select.EPOLLOUT | EPOLLRDHUP
 
 # TIMER-FD DETAILS:
 MIN_TIMER = 0.000000001
-TIMER_MASK = select.EPOLLIN | select.EPOLLONESHOT | EXC_MASK
+TIMER_MASK = select.EPOLLIN | select.EPOLLONESHOT | select.EPOLLHUP  # | EXC_MASK
 
 TIMER_CLOCK = timerfd_c.CLOCK_MONOTONIC
 TIMER_FLAGS = timerfd_c.TFD_NONBLOCK
@@ -149,20 +149,25 @@ class Hub(HubSkeleton):
                 l.tb(eventlet.hubs.IOClosed(errno.ENOTCONN, "Operation on closed file"))
         #
 
+    def timer_fire_immediate(self):
+        timers = self.timers_immediate
+        if not timers:
+            return False
+        immediate = timers[:]  # copy current and exec without new to come
+        del timers[:]
+        for t in immediate:
+            try:
+                t()  # exec immediate timer
+            except:
+                pass
+        return bool(timers)
+        #
+
     def execute_polling(self):
         self.ditch_closed()
 
-        timers_immediate = self.timers_immediate
-        if timers_immediate:
-            immediate = timers_immediate[:]  # copy current and exec without new to come
-            del timers_immediate[:]
-            for t in immediate:
-                try:
-                    t()  # exec immediate timer
-                except:
-                    pass
         try:
-            events = self.poll.poll(0 if timers_immediate else -1)
+            events = self.poll.poll(0 if self.timer_fire_immediate() else -1)
             if not events or not self.fds:
                 if events and not self.fds:
                     # that should not ever happen, else it is unregister &? close filno
@@ -188,18 +193,15 @@ class Hub(HubSkeleton):
         fds = self.fds
         for f, ev, details in [(f, ev, fds.get(f)) for f, ev in events if f in fds]:
             try:
-                if ev & READ_MASK and details.rs:
-                    details.rs[0]()
-                if ev & WRITE_MASK and details.ws:
-                    details.ws[0]()
+                ev & READ_MASK and details.rs and details.rs[0]()
+                ev & WRITE_MASK and details.ws and details.ws[0]()
             except SYSTEM_EXCEPTIONS:
                 continue
             except:
                 self.squelch_exception(f, sys.exc_info())
                 clear_sys_exc_info()
                 continue
-            if ev & CLOSED_MASK:
-                self._obsolete(f)
+            ev & CLOSED_MASK and self._obsolete(f)
         return True
         #
 
@@ -214,21 +216,18 @@ class Hub(HubSkeleton):
 
         self.running = True
         self.stopping = False
+        while self.execute_polling():
+            pass
 
-        try:
-            while True:
-                if not self.execute_polling():
-                    break
-        finally:
+        # exiting
+        while self.fds:
+            self._obsolete(self.fds.keys()[0])
+        self.ditch_closed()
 
-            while self.fds:
-                self._obsolete(self.fds.keys()[0])
-            self.ditch_closed()
-
-            self.poll.close()
-            self.poll_backing.close()
-            self.stopping = False
-            self.running = False
+        self.poll.close()
+        self.poll_backing.close()
+        self.stopping = False
+        self.running = False
         #
 
     def get_readers(self):
@@ -267,13 +266,7 @@ class Hub(HubSkeleton):
         #
 
     def modify(self, fileno, details):
-        mask = 0
-        if details.rs:
-            mask |= READ_MASK
-        if details.ws:
-            mask |= WRITE_MASK
-
-        self.poll.modify(fileno, mask)
+        self.poll.modify(fileno, (READ_MASK if details.rs else 0) | (WRITE_MASK if details.ws else 0))
         #
 
     def remove(self, listener):
