@@ -5,6 +5,7 @@ import eventlet
 from eventlet.hubs import trampoline, notify_opened, notify_close, IOClosed, active_hub
 from eventlet.support import get_errno
 import six
+import io
 
 from eventlet.green.OpenSSL.SSL import orig_SSL as SSL
 ssl = eventlet.patcher.original('ssl')
@@ -38,6 +39,8 @@ ex_return_zero = (ssl.SSLZeroReturnError, SSL.ZeroReturnError, ssl.SSLSyscallErr
 timeout_exc = eventlet.timeout.wrap_is_timeout(socket.timeout)(errno.ETIMEDOUT, 'timed out')
 # timeout_ssl_exc = ssl.SSLError(errno.ETIMEDOUT, 'timed out')
 ex_timeout = (type(timeout_exc), )
+
+ex_blocking = (io.BlockingIOError, )
 #
 
 
@@ -303,8 +306,7 @@ class UltraGreenSocket(object):
             if not read:
                 raise e
             return True
-
-        elif socket.error is type_e:
+        elif type_e is socket.error:
             eno = get_errno(e)
             if eno in SOCKET_BLOCKING:
                 pass
@@ -314,6 +316,8 @@ class UltraGreenSocket(object):
                 return True
             else:
                 raise e
+        elif type_e in ex_blocking:
+            pass
         else:
             raise e
 
